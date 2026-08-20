@@ -15,6 +15,7 @@ class PushOrdersToLinnworks extends Command
     public function handle(LinnworksOrderPushService $pushService): int
     {
         $hasFailures = false;
+        $hasBlocked = false;
         $pushedCount = 0;
 
         $tenantId = $this->argument('tenant_id');
@@ -24,15 +25,20 @@ class PushOrdersToLinnworks extends Command
 
         foreach ($tenants as $tenant) {
             $orders = TpOrder::where('tenant_id', $tenant->id)
-                ->whereIn('sync_status', [TpOrder::SYNC_PENDING, TpOrder::SYNC_FAILED])
+                ->whereIn('sync_status', [TpOrder::SYNC_PENDING, TpOrder::SYNC_FAILED, TpOrder::SYNC_BLOCKED])
                 ->orderBy('target_order_date')
                 ->limit(100)
                 ->get();
 
             foreach ($orders as $order) {
-                $ok = $pushService->pushOrder($tenant, $order);
+                $result = $pushService->pushOrder($tenant, $order);
 
-                if (!$ok) {
+                if ($result === TpOrder::SYNC_BLOCKED) {
+                    $hasBlocked = true;
+                    continue;
+                }
+
+                if ($result !== TpOrder::SYNC_SYNCED) {
                     $hasFailures = true;
                     continue;
                 }
@@ -49,6 +55,11 @@ class PushOrdersToLinnworks extends Command
         }
 
         $this->info("Orders pushed to Linnworks: {$pushedCount}");
+
+        if ($hasBlocked && !$hasFailures) {
+            $this->warn('Direct order push is unsupported for current Linnworks endpoint/path. Orders remain available for pull integration.');
+            return Command::SUCCESS;
+        }
 
         if ($hasFailures) {
             $this->error('Some orders failed to push to Linnworks.');

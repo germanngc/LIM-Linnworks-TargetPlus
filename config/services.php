@@ -6,7 +6,9 @@ return [
         'app_id'     => env('LINNWORKS_APP_ID'),
         'app_secret' => env('LINNWORKS_APP_SECRET'),
         'channel_integration' => env('LINNWORKS_CHANNEL_INTEGRATION', false),
-        'order_push_path' => env('LINNWORKS_ORDER_PUSH_PATH', '/api/Orders/CreateOrder'),
+        'order_push_path' => env('LINNWORKS_ORDER_PUSH_PATH', '/api/Orders/CreateOrders'),
+        'order_source' => env('LINNWORKS_ORDER_SOURCE', 'TARGET_PLUS'),
+        'order_subsource' => env('LINNWORKS_ORDER_SUBSOURCE', 'Target Plus'),
     ],
 
     'target_plus' => [

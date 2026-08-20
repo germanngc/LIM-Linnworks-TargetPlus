@@ -16,9 +16,12 @@ class OrderMapperService
         $address = $order->target_address['shipping_address'] ?? [];
 
         return [
+            'Source'                => (string) config('services.linnworks.order_source', 'TARGET_PLUS'),
+            'SubSource'             => (string) config('services.linnworks.order_subsource', 'Target Plus'),
             'ReferenceNumber'       => $order->target_order_id,
             'ExternalReference'     => $order->target_order_number,
-            'PaymentStatus'         => $order->lwPaymentStatus(),
+            'PaymentStatus'         => $this->mapPaymentStatus($order->lwPaymentStatus()),
+            'OrderStatusType'       => 'Unshipped',
             'Currency'              => $payload['currency'] ?? 'USD',
             'ReceivedDate'          => $this->toUtcString($payload['order_date'] ?? null),
             'DispatchBy'            => $this->toUtcString($payload['requested_shipment_date'] ?? null),
@@ -28,7 +31,6 @@ class OrderMapperService
             'MatchPostalServiceTag' => $payload['level_of_service'] ?? '',
             'MatchPaymentMethodTag' => 'Target Plus',
             'ChannelBuyerName'      => trim(($address['first_name'] ?? '') . ' ' . ($address['last_name'] ?? '')),
-            'Site'                  => '',
             'BillingAddress'        => $this->mapAddress($address),
             'DeliveryAddress'       => $this->mapAddress($address),
             'OrderItems'            => $this->mapOrderLines($payload['order_lines'] ?? []),
@@ -42,6 +44,7 @@ class OrderMapperService
         $phone = $a['phone_numbers'][0]['number'] ?? '';
 
         return [
+            'MatchCountryCode' => $a['country_code'] ?? 'US',
             'FullName'     => trim(($a['first_name'] ?? '') . ' ' . ($a['last_name'] ?? '')),
             'Company'      => '',
             'Address1'     => $a['address1'] ?? '',
@@ -50,8 +53,7 @@ class OrderMapperService
             'Town'         => $a['city'] ?? '',
             'Region'       => $a['state'] ?? '',
             'PostCode'     => $a['postal_code'] ?? '',
-            'Country'      => '',
-            'CountryCode'  => $a['country_code'] ?? 'US',
+            'Country'      => $a['country_code'] ?? 'US',
             'PhoneNumber'  => $phone,
             'EmailAddress' => '',
         ];
@@ -62,39 +64,23 @@ class OrderMapperService
         $mapped = [];
 
         foreach ($lines as $line) {
-            $lineStatus = $this->resolveLineStatus($line['order_line_statuses'] ?? []);
-
             $mapped[] = [
-                'OrderLineNumber'    => $line['order_line_number'],
-                'SKU'                => (string) ($line['tcin'] ?? ''),
+                'ItemNumber'         => (string) ($line['order_line_number'] ?? ''),
+                'ChannelSKU'         => (string) ($line['tcin'] ?? ''),
                 'ItemTitle'          => (string) ($line['tcin'] ?? ''),
                 'Qty'                => (int) ($line['quantity'] ?? 1),
                 'PricePerUnit'       => (float) ($line['unit_price'] ?? 0),
                 'TaxRate'            => 0,
-                'LinePercentDiscount' => 0,
+                'LineDiscount'       => 0,
                 'TaxCostInclusive'   => false,
                 'UseChannelTax'      => false,
                 'IsService'          => false,
-                'CancelStatus'       => $lineStatus,
                 'Options'            => [],
+                'Taxes'              => [],
             ];
         }
 
         return $mapped;
-    }
-
-    /**
-     * Derive CANCELLED or NONE from the line's order_line_statuses array.
-     */
-    private function resolveLineStatus(array $statuses): string
-    {
-        foreach ($statuses as $s) {
-            if (in_array($s['status'] ?? '', ['CANCELED', 'REFUNDED'])) {
-                return 'CANCELLED';
-            }
-        }
-
-        return 'NONE';
     }
 
     private function mapExtendedProperties(array $payload): array
@@ -121,9 +107,14 @@ class OrderMapperService
     private function toUtcString(?string $iso): string
     {
         if (!$iso) {
-            return now()->format('Y-m-d H:i:sZ');
+            return now()->utc()->toIso8601String();
         }
 
-        return Carbon::parse($iso)->utc()->format('Y-m-d H:i:sZ');
+        return Carbon::parse($iso)->utc()->toIso8601String();
+    }
+
+    private function mapPaymentStatus(string $status): string
+    {
+        return strtoupper($status) === 'CANCELLED' ? 'Cancelled' : 'Paid';
     }
 }

@@ -44,6 +44,7 @@ class TpOrder extends Model
     public const SYNC_PENDING = 'pending';
     public const SYNC_SYNCED = 'synced';
     public const SYNC_FAILED = 'failed';
+    public const SYNC_BLOCKED = 'blocked';
 
     public function tenant()
     {
@@ -55,6 +56,8 @@ class TpOrder extends Model
 
     // Active statuses — orders still open on Target Plus side
     public const ACTIVE_STATUSES = [
+        'NEW',
+        'PROCESSING',
         'PENDING',
         'RELEASED_FOR_SHIPMENT',
         'ACKNOWLEDGED_BY_SELLER',

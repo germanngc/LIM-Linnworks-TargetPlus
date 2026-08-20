@@ -15,52 +15,91 @@ class LinnworksOrderPushService
     /**
      * Push a single TP order payload to Linnworks.
      */
-    public function pushOrder(Tenant $tenant, TpOrder $order): bool
+    public function pushOrder(Tenant $tenant, TpOrder $order): string
     {
-        $path = (string) config('services.linnworks.order_push_path', '/api/Orders/CreateOrder');
-        $url = rtrim($tenant->linnworks_server, '/') . $path;
+        $paths = array_values(array_unique([
+            (string) config('services.linnworks.order_push_path', '/api/Orders/CreateOrders'),
+            '/api/Orders/CreateOrders',
+        ]));
 
-        try {
-            $response = $this->httpClient($tenant)->post($url, $this->mapper->toLinworks($order));
+        $lastStatus = null;
+        $lastError = null;
+        $allUnsupported = true;
+        $payload = [
+            'orders' => [$this->mapper->toLinworks($order)],
+        ];
 
-            if ($response->successful()) {
-                return true;
+        foreach ($paths as $path) {
+            $url = rtrim($tenant->linnworks_server, '/') . $path;
+
+            try {
+                $response = $this->httpClient($tenant)->post($url, $payload);
+
+                if ($response->successful()) {
+                    return TpOrder::SYNC_SYNCED;
+                }
+
+                $body = $response->json();
+                $errorMessage = is_array($body)
+                    ? ($body['Message'] ?? $body['Error'] ?? $response->body())
+                    : $response->body();
+
+                $isUnsupportedEndpoint = $response->status() === 404
+                    && str_contains((string) $errorMessage, 'No HTTP resource was found');
+
+                if (!$isUnsupportedEndpoint) {
+                    $allUnsupported = false;
+                }
+
+                $lastStatus = $response->status();
+                $lastError = (string) $errorMessage;
+
+                if ($isUnsupportedEndpoint) {
+                    continue;
+                }
+
+                Log::warning('Linnworks order push failed', [
+                    'tenant' => $tenant->id,
+                    'order_id' => $order->target_order_id,
+                    'status' => $response->status(),
+                    'error' => $errorMessage,
+                    'path' => $path,
+                ]);
+
+                $order->update([
+                    'sync_status' => TpOrder::SYNC_FAILED,
+                    'sync_attempt' => min(255, (int) $order->sync_attempt + 1),
+                    'last_sync_error' => mb_substr((string) $errorMessage, 0, 2000),
+                ]);
+
+                return TpOrder::SYNC_FAILED;
+            } catch (\Throwable $e) {
+                $allUnsupported = false;
+                $lastStatus = 0;
+                $lastError = $e->getMessage();
             }
-
-            $body = $response->json();
-            $errorMessage = is_array($body)
-                ? ($body['Message'] ?? $body['Error'] ?? $response->body())
-                : $response->body();
-
-            Log::warning('Linnworks order push failed', [
-                'tenant' => $tenant->id,
-                'order_id' => $order->target_order_id,
-                'status' => $response->status(),
-                'error' => $errorMessage,
-            ]);
-
-            $order->update([
-                'sync_status' => TpOrder::SYNC_FAILED,
-                'sync_attempt' => min(255, (int) $order->sync_attempt + 1),
-                'last_sync_error' => mb_substr((string) $errorMessage, 0, 2000),
-            ]);
-
-            return false;
-        } catch (\Throwable $e) {
-            Log::error('Linnworks order push exception', [
-                'tenant' => $tenant->id,
-                'order_id' => $order->target_order_id,
-                'error' => $e->getMessage(),
-            ]);
-
-            $order->update([
-                'sync_status' => TpOrder::SYNC_FAILED,
-                'sync_attempt' => min(255, (int) $order->sync_attempt + 1),
-                'last_sync_error' => mb_substr($e->getMessage(), 0, 2000),
-            ]);
-
-            return false;
         }
+
+        $status = $allUnsupported ? TpOrder::SYNC_BLOCKED : TpOrder::SYNC_FAILED;
+        $friendlyError = $allUnsupported
+            ? 'Direct Linnworks order push endpoint is unavailable for this account/path. Use channel pull endpoint integration or set LINNWORKS_ORDER_PUSH_PATH to a valid resource.'
+            : (string) ($lastError ?: 'Unknown Linnworks push error.');
+
+        Log::warning('Linnworks order push failed', [
+            'tenant' => $tenant->id,
+            'order_id' => $order->target_order_id,
+            'status' => $lastStatus,
+            'error' => $friendlyError,
+            'paths_tried' => $paths,
+        ]);
+
+        $order->update([
+            'sync_status' => $status,
+            'sync_attempt' => min(255, (int) $order->sync_attempt + 1),
+            'last_sync_error' => mb_substr($friendlyError, 0, 2000),
+        ]);
+
+        return $status;
     }
 
     private function httpClient(Tenant $tenant): PendingRequest

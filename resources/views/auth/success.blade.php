@@ -74,6 +74,7 @@
         .badge { display: inline-block; padding: .18rem .45rem; border-radius: 999px; font-size: .75rem; font-weight: 700; }
         .badge.ok { background: #dcfce7; color: #166534; }
         .badge.warn { background: #fee2e2; color: #9f1239; }
+        .badge.neutral { background: #e5e7eb; color: #374151; }
         .muted { color: #6b7280; }
         .alert { border-radius: 8px; padding: .7rem .9rem; margin-bottom: .95rem; font-size: .85rem; }
         .alert.ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
@@ -186,6 +187,7 @@
                                     @php
                                         $syncClass = match($order->sync_status) {
                                             'synced' => 'ok',
+                                            'blocked' => 'neutral',
                                             'failed' => 'warn',
                                             default => 'warn',
                                         };
