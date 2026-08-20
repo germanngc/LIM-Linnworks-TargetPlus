@@ -20,6 +20,9 @@ return new class extends Migration
             $table->boolean('listing_active')->default(false);
             $table->json('raw_payload')->nullable();
             $table->timestamp('inventory_synced_at')->nullable();
+            $table->string('linnworks_stock_item_id')->nullable()->index();
+            $table->string('linnworks_channel_mapping_id')->nullable()->index();
+            $table->timestamp('linnworks_synced_at')->nullable();
             $table->timestamps();
 
             $table->unique(['tenant_id', 'tcin']);

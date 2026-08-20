@@ -70,6 +70,12 @@ class Tenant extends Model
 
     public function targetBaseUrl(): string
     {
+        $override = config('services.target_plus.base_url');
+
+        if (is_string($override) && $override !== '') {
+            return rtrim($override, '/');
+        }
+
         return $this->target_environment === 'stage'
             ? 'https://stage-api.target.com/seller_orders/v1'
             : 'https://api.target.com/seller_orders/v1';

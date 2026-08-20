@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Tenant;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -32,8 +33,7 @@ class TargetPlusService
             return null;
         }
 
-        // API returns the array directly (not wrapped in a key)
-        return is_array($response) ? $response : null;
+        return $this->extractList($response);
     }
 
     /**
@@ -86,7 +86,7 @@ class TargetPlusService
         $sellerId = $this->tenant->target_seller_id;
         $response = $this->get("/sellers/{$sellerId}/products", $params);
 
-        return is_array($response) ? $response : null;
+        return $response ? $this->extractList($response) : null;
     }
 
     /**
@@ -116,7 +116,7 @@ class TargetPlusService
     private function get(string $path, array $query = []): ?array
     {
         try {
-            $response = Http::withHeaders($this->headers())
+            $response = $this->httpClient()
                 ->get($this->baseUrl . $path, $query);
 
             return $this->handleResponse($response, 'GET', $path);
@@ -129,7 +129,7 @@ class TargetPlusService
     private function put(string $path, array $body): ?array
     {
         try {
-            $response = Http::withHeaders($this->headers())
+            $response = $this->httpClient()
                 ->put($this->baseUrl . $path, $body);
 
             return $this->handleResponse($response, 'PUT', $path);
@@ -153,5 +153,25 @@ class TargetPlusService
         ]);
 
         return null;
+    }
+
+    private function httpClient(): PendingRequest
+    {
+        return Http::withHeaders($this->headers())
+            ->connectTimeout(8)
+            ->timeout(20)
+            ->retry(2, 200);
+    }
+
+    /**
+     * Some TP endpoints return raw arrays; others return paginated objects with a data key.
+     */
+    private function extractList(array $payload): array
+    {
+        if (isset($payload['data']) && is_array($payload['data'])) {
+            return $payload['data'];
+        }
+
+        return array_is_list($payload) ? $payload : [];
     }
 }

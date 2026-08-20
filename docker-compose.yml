@@ -1,0 +1,14 @@
+services:
+  db:
+    image: mariadb:10.5
+    container_name: lnw-tplus-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "9308:3306"
+    volumes:
+      - ./.build/mysql:/var/lib/mysql

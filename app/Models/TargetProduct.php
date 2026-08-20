@@ -17,12 +17,16 @@ class TargetProduct extends Model
         'listing_active',
         'raw_payload',
         'inventory_synced_at',
+        'linnworks_stock_item_id',
+        'linnworks_channel_mapping_id',
+        'linnworks_synced_at',
     ];
 
     protected $casts = [
         'raw_payload' => 'array',
         'listing_active' => 'boolean',
         'inventory_synced_at' => 'datetime',
+        'linnworks_synced_at' => 'datetime',
     ];
 
     public function tenant()

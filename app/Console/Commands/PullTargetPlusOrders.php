@@ -77,6 +77,15 @@ class PullTargetPlusOrders extends Command
             }
 
             foreach ($orders as $raw) {
+                if (!is_array($raw)) {
+                    Log::warning('PullTargetPlusOrders: skipping malformed order payload item', [
+                        'tenant' => $tenant->id,
+                        'type' => gettype($raw),
+                        'value' => $raw,
+                    ]);
+                    continue;
+                }
+
                 $this->upsertOrder($tp, $tenant, $raw);
             }
 
@@ -120,6 +129,8 @@ class PullTargetPlusOrders extends Command
                 'target_payload'          => $raw,
                 'target_payload_checksum' => $checksum,
                 'target_address'          => $address,
+                'sync_status'             => TpOrder::SYNC_PENDING,
+                'synced_to_linnworks_at'  => null,
             ]
         );
 

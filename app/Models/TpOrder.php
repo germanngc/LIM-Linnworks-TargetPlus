@@ -24,6 +24,8 @@ class TpOrder extends Model
         'lw_payment_status',
         'pushed_to_target_at',
         'cancel_pushed_to_target',
+        'sync_status',
+        'synced_to_linnworks_at',
         'sync_attempt',
         'last_sync_error',
     ];
@@ -35,8 +37,13 @@ class TpOrder extends Model
         'target_updated_at' => 'datetime',
         'shipped_date' => 'datetime',
         'pushed_to_target_at' => 'datetime',
+        'synced_to_linnworks_at' => 'datetime',
         'cancel_pushed_to_target' => 'boolean',
     ];
+
+    public const SYNC_PENDING = 'pending';
+    public const SYNC_SYNCED = 'synced';
+    public const SYNC_FAILED = 'failed';
 
     public function tenant()
     {

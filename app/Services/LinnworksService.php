@@ -10,19 +10,22 @@ class LinnworksService
 {
     private const AUTH_URL = 'https://api.linnworks.net/api/Auth/AuthorizeByApplication';
 
+    private ?string $lastError = null;
+
     /**
      * Exchange a user-provided application token for Linnworks session data.
      * Returns the raw decoded response or null on failure.
      */
     public function authorizeByApplication(string $applicationToken): ?array
     {
+        $this->lastError = null;
+
         try {
             $response = Http::asForm()
-                ->withHeaders([
-                    'Accept'          => 'application/json',
-                    'Accept-Encoding' => 'gzip, deflate',
-                    'Content-Type'    => 'application/x-www-form-urlencoded; charset=UTF-8',
-                ])
+                ->acceptJson()
+                ->connectTimeout(8)
+                ->timeout(15)
+                ->retry(1, 200)
                 ->post(self::AUTH_URL, [
                     'ApplicationId'     => config('services.linnworks.app_id'),
                     'ApplicationSecret' => config('services.linnworks.app_secret'),
@@ -30,15 +33,29 @@ class LinnworksService
                 ]);
 
             if ($response->failed()) {
-                Log::warning('Linnworks AuthorizeByApplication failed', ['body' => $response->body()]);
+                $jsonMessage = $response->json('Message');
+                $this->lastError = is_string($jsonMessage) && $jsonMessage !== ''
+                    ? $jsonMessage
+                    : 'Linnworks authorization failed.';
+
+                Log::warning('Linnworks AuthorizeByApplication failed', [
+                    'status' => $response->status(),
+                    'body'   => $response->body(),
+                ]);
                 return null;
             }
 
             return $response->json();
         } catch (\Throwable $e) {
+            $this->lastError = $e->getMessage();
             Log::error('Linnworks AuthorizeByApplication exception: ' . $e->getMessage());
             return null;
         }
+    }
+
+    public function getLastError(): ?string
+    {
+        return $this->lastError;
     }
 
     /**
