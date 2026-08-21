@@ -4,8 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class TargetProduct extends Model
+class TpProduct extends Model
 {
+    protected $table = 'tp_products';
+
     protected $fillable = [
         'tenant_id',
         'tcin',
@@ -14,6 +16,7 @@ class TargetProduct extends Model
         'title',
         'status',
         'available_quantity',
+        'price',
         'listing_active',
         'raw_payload',
         'inventory_synced_at',
@@ -25,6 +28,7 @@ class TargetProduct extends Model
     protected $casts = [
         'raw_payload' => 'array',
         'listing_active' => 'boolean',
+        'price' => 'decimal:2',
         'inventory_synced_at' => 'datetime',
         'linnworks_synced_at' => 'datetime',
     ];

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\TargetProduct;
+use App\Models\TpProduct;
 use App\Models\Tenant;
 use App\Services\LinnworksInventoryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -29,7 +29,7 @@ class SyncTargetListingsToLinnworksTest extends TestCase
             'active' => true,
         ]);
 
-        $product = TargetProduct::create([
+        $product = TpProduct::create([
             'tenant_id' => $tenant->id,
             'tcin' => '12345678',
             'external_id' => 'EXT-12345678',

@@ -2,6 +2,10 @@
 
 This project is a Laravel application that connects a Linnworks account to Target Plus for order synchronization, catalog sync, inventory updates, and fulfillment status flows.
 
+Channel configuration decisions for Linnworks (Orders/Inventory/Listings) are documented in:
+
+- [docs/linnworks-channel-config-decisions.md](docs/linnworks-channel-config-decisions.md)
+
 The app is designed around a tenant-based setup flow:
 
 - A user starts from Linnworks and authorizes the integration.

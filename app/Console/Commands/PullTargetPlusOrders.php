@@ -6,6 +6,7 @@ use App\Models\Tenant;
 use App\Models\TpOrder;
 use App\Services\AlertService;
 use App\Services\TargetPlusService;
+use App\Services\SyncLogService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -15,7 +16,7 @@ class PullTargetPlusOrders extends Command
     protected $signature   = 'tp:pull-orders {tenant_id? : Limit to a specific tenant ID}';
     protected $description = 'Pull new and updated orders from Target Plus into the local DB.';
 
-    public function __construct(private AlertService $alerts)
+    public function __construct(private AlertService $alerts, private SyncLogService $syncLogs)
     {
         parent::__construct();
     }
@@ -23,9 +24,7 @@ class PullTargetPlusOrders extends Command
     public function handle(): int
     {
         $tenantId = $this->argument('tenant_id');
-        $tenants  = $tenantId
-            ? Tenant::where('id', $tenantId)->where('active', true)->get()
-            : Tenant::where('active', true)->get();
+        $tenants = Tenant::syncable($tenantId === null ? null : (int) $tenantId);
 
         if ($tenants->isEmpty()) {
             $this->info('No active tenants found.');
@@ -49,18 +48,22 @@ class PullTargetPlusOrders extends Command
         $now      = Carbon::now();
         $interval = $since->toIso8601String() . '/' . $now->toIso8601String();
 
-        $this->fetchAndUpsert($tp, $tenant, ['order_date' => $interval, 'per_page' => 100]);
+        $newOrdersOk = $this->fetchAndUpsert($tp, $tenant, ['order_date' => $interval, 'per_page' => 100]);
 
         // Pass 2: refresh status of all currently-active orders in TP
-        $this->fetchAndUpsert($tp, $tenant, ['order_status' => TpOrder::ACTIVE_STATUSES, 'per_page' => 100]);
+        $activeOrdersOk = $this->fetchAndUpsert($tp, $tenant, ['order_status' => TpOrder::ACTIVE_STATUSES, 'per_page' => 100]);
 
-        $tenant->update(['last_sync_at' => $now]);
+        $success = $newOrdersOk && $activeOrdersOk;
+        if ($success) {
+            $tenant->update(['last_sync_at' => $now]);
+        }
+        $this->syncLogs->record($tenant, 'tp_to_lw', 'order_pull', $success, $success ? 'Order pull completed.' : 'One or more Target Plus order queries failed.');
     }
 
     /**
      * Page through a TP orders query and upsert each into the DB.
      */
-    private function fetchAndUpsert(TargetPlusService $tp, Tenant $tenant, array $params): void
+    private function fetchAndUpsert(TargetPlusService $tp, Tenant $tenant, array $params): bool
     {
         $page = 1;
 
@@ -73,7 +76,7 @@ class PullTargetPlusOrders extends Command
                 $this->alerts->notifyGeneral(
                     "[TP Sync] Failed to fetch orders page {$page} for tenant {$tenant->id} ({$tenant->linnworks_email})"
                 );
-                break;
+                return false;
             }
 
             foreach ($orders as $raw) {
@@ -91,6 +94,8 @@ class PullTargetPlusOrders extends Command
 
             $page++;
         } while (count($orders) === ($params['per_page'] ?? 10));
+
+        return true;
     }
 
     private function upsertOrder(TargetPlusService $tp, Tenant $tenant, array $raw): void

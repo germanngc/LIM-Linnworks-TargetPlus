@@ -5,15 +5,27 @@ namespace App\Http\Middleware;
 use App\Models\Tenant;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 class ResolveAuthorizationToken
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $token = $request->input('AuthorizationToken');
+        $token = (string) (
+            $request->input('AuthorizationToken')
+            ?? $request->input('authorizationToken')
+            ?? $request->header('AuthorizationToken')
+            ?? $request->header('X-AuthorizationToken')
+            ?? ''
+        );
 
         if (!$token) {
+            Log::warning('ChannelIntegration missing AuthorizationToken', [
+                'path' => $request->path(),
+                'payload' => $request->all(),
+            ]);
+
             return response()->json(['Error' => 'Missing AuthorizationToken'], 401);
         }
 

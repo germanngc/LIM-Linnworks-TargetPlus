@@ -13,7 +13,10 @@ class OrderMapperService
     public function toLinworks(TpOrder $order): array
     {
         $payload = $order->target_payload;
-        $address = $order->target_address['shipping_address'] ?? [];
+        $address = $order->target_address['shipping_address']
+            ?? $order->target_address['address']
+            ?? $payload['shipping_address']
+            ?? [];
 
         return [
             'Source'                => (string) config('services.linnworks.order_source', 'TARGET_PLUS'),
@@ -44,7 +47,6 @@ class OrderMapperService
         $phone = $a['phone_numbers'][0]['number'] ?? '';
 
         return [
-            'MatchCountryCode' => $a['country_code'] ?? 'US',
             'FullName'     => trim(($a['first_name'] ?? '') . ' ' . ($a['last_name'] ?? '')),
             'Company'      => '',
             'Address1'     => $a['address1'] ?? '',
@@ -53,7 +55,8 @@ class OrderMapperService
             'Town'         => $a['city'] ?? '',
             'Region'       => $a['state'] ?? '',
             'PostCode'     => $a['postal_code'] ?? '',
-            'Country'      => $a['country_code'] ?? 'US',
+            'Country'      => $a['country'] ?? $a['country_code'] ?? 'US',
+            'CountryCode'  => $a['country_code'] ?? $a['country'] ?? 'US',
             'PhoneNumber'  => $phone,
             'EmailAddress' => '',
         ];
@@ -65,13 +68,13 @@ class OrderMapperService
 
         foreach ($lines as $line) {
             $mapped[] = [
-                'ItemNumber'         => (string) ($line['order_line_number'] ?? ''),
-                'ChannelSKU'         => (string) ($line['tcin'] ?? ''),
+                'OrderLineNumber'    => (string) ($line['order_line_number'] ?? ''),
+                'SKU'                => (string) ($line['sku'] ?? $line['tcin'] ?? ''),
                 'ItemTitle'          => (string) ($line['tcin'] ?? ''),
                 'Qty'                => (int) ($line['quantity'] ?? 1),
-                'PricePerUnit'       => (float) ($line['unit_price'] ?? 0),
+                'PricePerUnit'       => (float) ($line['unit_price'] ?? $line['price'] ?? 0),
                 'TaxRate'            => 0,
-                'LineDiscount'       => 0,
+                'LinePercentDiscount' => 0,
                 'TaxCostInclusive'   => false,
                 'UseChannelTax'      => false,
                 'IsService'          => false,
@@ -115,6 +118,6 @@ class OrderMapperService
 
     private function mapPaymentStatus(string $status): string
     {
-        return strtoupper($status) === 'CANCELLED' ? 'Cancelled' : 'Paid';
+        return strtoupper($status) === 'CANCELLED' ? 'CANCELLED' : 'PAID';
     }
 }

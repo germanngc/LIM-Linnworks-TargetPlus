@@ -19,9 +19,7 @@ class PushOrdersToLinnworks extends Command
         $pushedCount = 0;
 
         $tenantId = $this->argument('tenant_id');
-        $tenants = $tenantId
-            ? Tenant::where('id', $tenantId)->where('active', true)->get()
-            : Tenant::where('active', true)->get();
+        $tenants = Tenant::syncable($tenantId === null ? null : (int) $tenantId);
 
         foreach ($tenants as $tenant) {
             $orders = TpOrder::where('tenant_id', $tenant->id)

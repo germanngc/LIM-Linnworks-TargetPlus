@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\TargetProduct;
+use App\Models\TpProduct;
 use App\Models\Tenant;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -57,7 +57,7 @@ class LinnworksInventoryService
 
     public function syncTargetProductListing(
         Tenant $tenant,
-        TargetProduct $product,
+        TpProduct $product,
         ?string $source = null,
         ?string $subSource = null
     ): array {
@@ -134,7 +134,7 @@ class LinnworksInventoryService
         ];
     }
 
-    private function resolveSku(TargetProduct $product): string
+    private function resolveSku(TpProduct $product): string
     {
         return trim((string) ($product->sku ?: $product->external_id ?: $product->tcin));
     }

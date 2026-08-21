@@ -28,6 +28,9 @@ class TpOrder extends Model
         'synced_to_linnworks_at',
         'sync_attempt',
         'last_sync_error',
+        'refund_reference',
+        'refunded_to_target_at',
+        'despatch_checksum',
     ];
 
     protected $casts = [
@@ -39,6 +42,7 @@ class TpOrder extends Model
         'pushed_to_target_at' => 'datetime',
         'synced_to_linnworks_at' => 'datetime',
         'cancel_pushed_to_target' => 'boolean',
+        'refunded_to_target_at' => 'datetime',
     ];
 
     public const SYNC_PENDING = 'pending';

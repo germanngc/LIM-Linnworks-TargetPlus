@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(\App\Http\Middleware\CorrelationId::class);
         $middleware->alias([
             'lw.auth' => \App\Http\Middleware\ResolveAuthorizationToken::class,
         ]);
@@ -25,4 +26,3 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*'),
         );
     })->create();
-

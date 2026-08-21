@@ -22,9 +22,7 @@ class PushCancellationsToTargetPlus extends Command
     public function handle(): int
     {
         $tenantId = $this->argument('tenant_id');
-        $tenants  = $tenantId
-            ? Tenant::where('id', $tenantId)->where('active', true)->get()
-            : Tenant::where('active', true)->get();
+        $tenants = Tenant::syncable($tenantId === null ? null : (int) $tenantId);
 
         foreach ($tenants as $tenant) {
             $this->processTenant($tenant);

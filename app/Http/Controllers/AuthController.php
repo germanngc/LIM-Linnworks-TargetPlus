@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\TargetProduct;
+use App\Models\TpProduct;
 use App\Models\Tenant;
 use App\Models\TpOrder;
 use App\Services\LinnworksService;
@@ -40,11 +40,18 @@ class AuthController extends Controller
             return view('auth.error', ['message' => $error ?: 'Could not verify Linnworks token. Please try again.']);
         }
 
+        $linnworksUserId = trim((string) ($lwData['Id'] ?? ''));
+        $linnworksEmail = trim((string) ($lwData['Email'] ?? ''));
+
+        if ($linnworksUserId === '' && $linnworksEmail !== '') {
+            $linnworksUserId = 'lw-' . md5($linnworksEmail);
+        }
+
         // Find or create the tenant stub so we preserve the authorization_token across page reloads
         $tenant = Tenant::firstOrCreate(
-            ['linnworks_user_id' => $lwData['Id']],
+            ['linnworks_user_id' => $linnworksUserId],
             [
-                'linnworks_email'             => $lwData['Email'] ?? '',
+                'linnworks_email'             => $linnworksEmail,
                 'linnworks_application_token' => $token,
                 'linnworks_token'             => $lwData['Token'],
                 'linnworks_server'            => $lwData['Server'] ?? 'https://api.linnworks.net',
@@ -132,7 +139,7 @@ class AuthController extends Controller
         }
 
         $commands = [
-            'orders' => 'tp:sync-orders',
+            'orders' => 'tp:pull-orders',
             'inventory' => 'tp:sync-inventory',
             'listings' => 'tp:sync-listings',
         ];
@@ -155,7 +162,7 @@ class AuthController extends Controller
 
             dispatch(function () use ($tenantId, $type) {
                 $commands = [
-                    'orders' => 'tp:sync-orders',
+                    'orders' => 'tp:pull-orders',
                     'inventory' => 'tp:sync-inventory',
                     'listings' => 'tp:sync-listings',
                 ];
@@ -279,13 +286,13 @@ class AuthController extends Controller
             ->limit(8)
             ->get();
 
-        $products = TargetProduct::where('tenant_id', $tenant->id)
+        $products = TpProduct::where('tenant_id', $tenant->id)
             ->orderByDesc('linnworks_synced_at')
             ->orderByDesc('inventory_synced_at')
             ->limit(8)
             ->get();
 
-        $linkedCount = TargetProduct::where('tenant_id', $tenant->id)
+        $linkedCount = TpProduct::where('tenant_id', $tenant->id)
             ->whereNotNull('linnworks_channel_mapping_id')
             ->count();
 

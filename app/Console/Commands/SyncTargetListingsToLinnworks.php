@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\TargetProduct;
+use App\Models\TpProduct;
 use App\Models\Tenant;
 use App\Services\LinnworksInventoryService;
 use Illuminate\Console\Command;
@@ -16,9 +16,7 @@ class SyncTargetListingsToLinnworks extends Command
     public function handle(LinnworksInventoryService $linnworks): int
     {
         $tenantId = $this->argument('tenant_id');
-        $tenants = $tenantId
-            ? Tenant::where('id', $tenantId)->where('active', true)->get()
-            : Tenant::where('active', true)->get();
+        $tenants = Tenant::syncable($tenantId === null ? null : (int) $tenantId);
 
         foreach ($tenants as $tenant) {
             $this->syncTenantListings($linnworks, $tenant);
@@ -29,7 +27,7 @@ class SyncTargetListingsToLinnworks extends Command
 
     private function syncTenantListings(LinnworksInventoryService $linnworks, Tenant $tenant): void
     {
-        $products = TargetProduct::where('tenant_id', $tenant->id)->get();
+        $products = TpProduct::where('tenant_id', $tenant->id)->get();
 
         foreach ($products as $product) {
             $result = $linnworks->syncTargetProductListing($tenant, $product);

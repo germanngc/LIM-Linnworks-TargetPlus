@@ -66,6 +66,17 @@ class DespatchController extends Controller
 
             // Build fulfillment items from all order lines that are not yet shipped
             $items = $this->buildFulfillmentItems($dbOrder, $trackingNumber, $postalService);
+            $despatchChecksum = hash('sha256', json_encode([
+                'reference' => $referenceNumber,
+                'tracking' => $trackingNumber,
+                'carrier' => $postalService,
+                'items' => array_map(fn (array $item) => collect($item)->except('shipped_date')->all(), $items),
+            ]));
+
+            if ($dbOrder->pushed_to_target_at && hash_equals((string) $dbOrder->despatch_checksum, $despatchChecksum)) {
+                Log::info("Despatch: duplicate shipment ignored for order {$referenceNumber}");
+                continue;
+            }
 
             $success = $tp->confirmShipment($referenceNumber, $items);
 
@@ -77,6 +88,7 @@ class DespatchController extends Controller
                     'pushed_to_target_at' => now(),
                     'sync_attempt'       => 0,
                     'last_sync_error'    => null,
+                    'despatch_checksum'  => $despatchChecksum,
                 ]);
 
                 Log::info("Despatch: confirmed shipment for order {$referenceNumber}");

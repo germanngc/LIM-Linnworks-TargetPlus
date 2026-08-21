@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class Tenant extends Model
@@ -79,5 +80,25 @@ class Tenant extends Model
         return $this->target_environment === 'stage'
             ? 'https://stage-api.target.com/seller_orders/v1'
             : 'https://api.target.com/seller_orders/v1';
+    }
+
+    public function hasTargetPlusCredentials(): bool
+    {
+        foreach ([$this->target_api_key, $this->target_seller_id, $this->target_seller_token] as $value) {
+            if (!is_string($value) || trim($value) === '' || str_starts_with($value, '_pending_')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static function syncable(?int $tenantId = null): Collection
+    {
+        return static::query()
+            ->where('active', true)
+            ->when($tenantId !== null, fn ($query) => $query->whereKey($tenantId))
+            ->get()
+            ->filter(fn (Tenant $tenant) => $tenant->hasTargetPlusCredentials())
+            ->values();
     }
 }
