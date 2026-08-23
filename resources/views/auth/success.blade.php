@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Target Plus — Dashboard</title>
+    <title>Vendor — Dashboard</title>
     <style>
         :root {
             --tp-red: #cc0000;
@@ -101,7 +101,7 @@
 <div class="wrap">
     <div class="panel">
         <div class="head">
-            <h1>Linnworks Target Plus Bridge</h1>
+            <h1>Linnworks Channel Bridge</h1>
             <div class="connected">Connected</div>
         </div>
 
@@ -128,13 +128,13 @@
                 @endforeach
             </div>
 
-            <p class="sub">Your branded operations hub for Target Plus orders, inventory, and listing links.</p>
+            <p class="sub">Your branded operations hub for vendor orders, inventory, and listing links.</p>
 
             <div class="status-card">
                 <div class="status-meta">
                     Signed in as<br>
                     <strong>{{ $tenant->linnworks_email ?: ('Tenant #' . $tenant->id) }}</strong><br>
-                    Site {{ strtoupper($tenant->target_environment) }} · Seller ID {{ $tenant->target_seller_id }}
+                    Site {{ strtoupper($tenant->vendor_environment) }} · Account ID {{ $tenant->vendor_account_id }}
                 </div>
 
                 <div class="actions">
@@ -181,8 +181,8 @@
                         <tbody>
                         @forelse ($openOrders as $order)
                             <tr>
-                                <td>{{ $order->target_order_number ?: $order->target_order_id }}</td>
-                                <td><span class="badge {{ in_array($order->target_status, ['SHIPPED','RELEASED_FOR_SHIPMENT']) ? 'ok' : 'warn' }}">{{ $order->target_status ?: 'UNKNOWN' }}</span></td>
+                                <td>{{ $order->vendor_order_number ?: $order->vendor_order_id }}</td>
+                                <td><span class="badge {{ in_array($order->vendor_status, ['SHIPPED','RELEASED_FOR_SHIPMENT']) ? 'ok' : 'warn' }}">{{ $order->vendor_status ?: 'UNKNOWN' }}</span></td>
                                 <td>
                                     @php
                                         $syncClass = match($order->sync_status) {
@@ -201,11 +201,11 @@
                                 </td>
                                 <td>{{ $order->lwPaymentStatus() }}</td>
                                 <td>{{ $order->tracking_number ?: 'Not linked' }}</td>
-                                <td class="muted">{{ optional($order->target_updated_at)->diffForHumans() ?: '—' }}</td>
+                                <td class="muted">{{ optional($order->vendor_updated_at)->diffForHumans() ?: '—' }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="muted">No open orders yet. Run Sync orders to fetch from Target Plus.</td>
+                                <td colspan="6" class="muted">No open orders yet. Run Sync orders to fetch from vendor.</td>
                             </tr>
                         @endforelse
                         </tbody>
@@ -215,13 +215,13 @@
 
             <div class="section">
                 <h2>Inventory / Listings ({{ $products->count() }})</h2>
-                <p class="sub">Linked items: {{ $linkedCount }}. Create listing maps Target Plus products to Linnworks stock items.</p>
+                <p class="sub">Linked items: {{ $linkedCount }}. Create listing maps Vendor products to Linnworks stock items.</p>
                 <div class="table-wrap">
                     <table>
                         <thead>
                         <tr>
                             <th>SKU</th>
-                            <th>Target item</th>
+                            <th>vendor item</th>
                             <th>Title</th>
                             <th>Qty</th>
                             <th>Link</th>
@@ -232,7 +232,7 @@
                         @forelse ($products as $product)
                             <tr>
                                 <td>{{ $product->sku ?: '—' }}</td>
-                                <td>{{ $product->external_id ?: $product->tcin }}</td>
+                                <td>{{ $product->external_id ?: $product->vendor_reference }}</td>
                                 <td>{{ $product->title ?: 'Untitled product' }}</td>
                                 <td>{{ $product->available_quantity }}</td>
                                 <td>

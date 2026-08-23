@@ -3,16 +3,16 @@
 namespace App\Console\Commands;
 
 use App\Models\Tenant;
-use App\Models\TpOrder;
+use App\Models\VendorOrder;
 use App\Services\AlertService;
-use App\Services\TargetPlusService;
+use App\Services\VendorApiService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
-class PushCancellationsToTargetPlus extends Command
+class PushCancellationsToVendor extends Command
 {
-    protected $signature   = 'tp:push-cancellations {tenant_id? : Limit to a specific tenant ID}';
-    protected $description = 'Push Linnworks-initiated cancellations back to Target Plus.';
+    protected $signature   = 'vendor:push-cancellations {tenant_id? : Limit to a specific tenant ID}';
+    protected $description = 'Push Linnworks-initiated cancellations back to Vendor.';
 
     public function __construct(private AlertService $alerts)
     {
@@ -33,37 +33,37 @@ class PushCancellationsToTargetPlus extends Command
 
     private function processTenant(Tenant $tenant): void
     {
-        // Orders Linnworks flagged CANCELLED but we haven't told Target Plus yet
-        $orders = TpOrder::where('tenant_id', $tenant->id)
+        // Orders Linnworks flagged CANCELLED but we haven't told Vendor yet
+        $orders = VendorOrder::where('tenant_id', $tenant->id)
             ->where('lw_payment_status', 'CANCELLED')
-            ->where('cancel_pushed_to_target', false)
-            ->whereNotIn('target_status', TpOrder::TERMINAL_STATUSES)
+            ->where('cancel_pushed_to_vendor', false)
+            ->whereNotIn('vendor_status', VendorOrder::TERMINAL_STATUSES)
             ->get();
 
         if ($orders->isEmpty()) {
             return;
         }
 
-        $tp = new TargetPlusService($tenant);
+        $tp = new VendorApiService($tenant);
 
         foreach ($orders as $order) {
-            $success = $tp->updateOrderStatus($order->target_order_id, 'CANCELED');
+            $success = $tp->updateOrderStatus($order->vendor_order_id, 'CANCELED');
 
             if ($success) {
                 $order->update([
-                    'cancel_pushed_to_target' => true,
-                    'target_status'           => 'CANCELED',
+                    'cancel_pushed_to_vendor' => true,
+                    'vendor_status'           => 'CANCELED',
                     'sync_attempt'            => 0,
                     'last_sync_error'         => null,
                 ]);
 
-                Log::info("PushCancellations: order {$order->target_order_id} cancelled on Target Plus");
+                Log::info("PushCancellations: order {$order->vendor_order_id} cancelled on Vendor");
             } else {
                 $attempt = $order->sync_attempt + 1;
-                $errMsg  = "Failed to cancel order {$order->target_order_id} on Target Plus";
+                $errMsg  = "Failed to cancel order {$order->vendor_order_id} on Vendor";
 
                 $order->update(['sync_attempt' => $attempt, 'last_sync_error' => $errMsg]);
-                $this->alerts->notifyOrderSyncFailure($tenant->id, $order->target_order_id, $errMsg, $attempt);
+                $this->alerts->notifyOrderSyncFailure($tenant->id, $order->vendor_order_id, $errMsg, $attempt);
                 Log::warning($errMsg);
             }
         }

@@ -2,30 +2,30 @@
 
 namespace Tests\Unit;
 
-use App\Models\TpOrder;
+use App\Models\VendorOrder;
 use App\Services\OrderMapperService;
 use Tests\TestCase;
 
 class OrderMapperServiceTest extends TestCase
 {
-    public function test_it_maps_target_order_lines_to_required_linnworks_fields(): void
+    public function test_it_maps_vendor_order_lines_to_required_linnworks_fields(): void
     {
-        $order = new TpOrder([
-            'target_order_id' => 'TP-10001',
-            'target_order_number' => 'TP-10001',
-            'target_status' => 'NEW',
-            'target_payload' => [
+        $order = new VendorOrder([
+            'vendor_order_id' => 'MOCK-ORDER-10001',
+            'vendor_order_number' => 'MOCK-ORDER-10001',
+            'vendor_status' => 'NEW',
+            'vendor_payload' => [
                 'order_date' => '2026-08-20T22:00:00Z',
                 'currency' => 'USD',
                 'order_lines' => [[
                     'order_line_number' => 1,
                     'sku' => 'SKU-1001',
-                    'tcin' => '12345678901',
+                    'vendor_reference' => '12345678901',
                     'quantity' => 2,
                     'price' => 79.99,
                 ]],
             ],
-            'target_address' => [
+            'vendor_address' => [
                 'address' => [
                     'first_name' => 'Jane',
                     'last_name' => 'Doe',

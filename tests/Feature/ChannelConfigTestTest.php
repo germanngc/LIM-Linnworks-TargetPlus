@@ -27,7 +27,7 @@ class ChannelConfigTestTest extends TestCase
 
         $this->postJson('/api/Config/ConfigTest', ['AuthorizationToken' => $token])
             ->assertOk()
-            ->assertJson(['Success' => false, 'Error' => 'Target Plus credentials are incomplete.']);
+            ->assertJson(['Success' => false, 'Error' => 'Vendor credentials are incomplete.']);
     }
 
     public function test_user_config_is_available_without_token_for_discovery_get_config(): void
@@ -36,15 +36,15 @@ class ChannelConfigTestTest extends TestCase
             ->assertOk()
             ->assertJsonPath('Error', null)
             ->assertJsonPath('StepName', 'AddCredentials')
-            ->assertJsonPath('AccountName', 'Target Plus Channel')
+            ->assertJsonPath('AccountName', 'Vendor Channel')
             ->assertJsonPath('ConfigItems.0.ConfigItemId', 'APIKey')
             ->assertJsonPath('ConfigItems.0.HidesHeaderAttribute', false);
     }
 
     public function test_config_test_requires_an_authorization_token(): void
     {
-        config(['services.target_plus.base_url' => 'https://target.test']);
-        Http::fake(['https://target.test/sellers/seller-123/orders*' => Http::response(['data' => []])]);
+        config(['services.vendor_api.base_url' => 'https://vendor.test']);
+        Http::fake(['https://vendor.test/accounts/account-123/orders*' => Http::response(['data' => []])]);
         Tenant::create([
             'linnworks_user_id' => 'user-1',
             'linnworks_email' => 'test@example.com',
@@ -52,10 +52,10 @@ class ChannelConfigTestTest extends TestCase
             'linnworks_token' => 'linnworks-session-token',
             'linnworks_server' => 'https://eu-ext.linnworks.net',
             'authorization_token' => 'cfg-token-123',
-            'target_api_key' => 'api-key',
-            'target_seller_id' => 'seller-123',
-            'target_seller_token' => 'seller-token',
-            'target_environment' => 'stage',
+            'vendor_api_key' => 'api-key',
+            'vendor_account_id' => 'account-123',
+            'vendor_account_token' => 'account-token',
+            'vendor_environment' => 'stage',
             'active' => true,
         ]);
 

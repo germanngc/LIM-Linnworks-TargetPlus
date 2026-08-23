@@ -1,22 +1,22 @@
 <?php
 
-use App\Http\Controllers\MockTargetPlusController;
+use App\Http\Controllers\MockVendorController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('mock-target-plus')->group(function () {
-    Route::delete('/sellers/{sellerId}/_state', [MockTargetPlusController::class, 'reset']);
-    Route::get('/orders', [MockTargetPlusController::class, 'orders']);
-    Route::get('/sellers/{sellerId}/orders', [MockTargetPlusController::class, 'orders']);
-    Route::get('/sellers/{sellerId}/order_addresses/{orderId}', [MockTargetPlusController::class, 'orderAddress']);
-    Route::put('/sellers/{sellerId}/order_statuses/{orderId}', [MockTargetPlusController::class, 'orderStatus']);
-    Route::put('/sellers/{sellerId}/orders/{orderId}/bulk_fulfillments_update', [MockTargetPlusController::class, 'bulkFulfillmentsUpdate']);
-    Route::get('/sellers/{sellerId}/products', [MockTargetPlusController::class, 'products']);
-    Route::post('/sellers/{sellerId}/products', [MockTargetPlusController::class, 'createProduct']);
-    Route::put('/sellers/{sellerId}/products/{tcin}', [MockTargetPlusController::class, 'updateProduct']);
-    Route::delete('/sellers/{sellerId}/products/{tcin}', [MockTargetPlusController::class, 'deleteProduct']);
-    Route::get('/sellers/{sellerId}/products/{tcin}/inventory', [MockTargetPlusController::class, 'productInventory']);
-    Route::put('/sellers/{sellerId}/products/{tcin}/inventory', [MockTargetPlusController::class, 'updateProductInventory']);
-    Route::put('/sellers/{sellerId}/products/{tcin}/price', [MockTargetPlusController::class, 'updateProductPrice']);
-    Route::put('/sellers/{sellerId}/orders/{orderId}/cancel', [MockTargetPlusController::class, 'cancelOrder']);
-    Route::post('/sellers/{sellerId}/orders/{orderId}/refund', [MockTargetPlusController::class, 'refundOrder']);
+Route::prefix('mock-vendor')->group(function () {
+    Route::delete('/accounts/{accountId}/_state', [MockVendorController::class, 'reset']);
+    Route::get('/orders', [MockVendorController::class, 'orders']);
+    Route::get('/accounts/{accountId}/orders', [MockVendorController::class, 'orders']);
+    Route::get('/accounts/{accountId}/order_addresses/{orderId}', [MockVendorController::class, 'orderAddress']);
+    Route::put('/accounts/{accountId}/order_statuses/{orderId}', [MockVendorController::class, 'orderStatus']);
+    Route::put('/accounts/{accountId}/orders/{orderId}/bulk_fulfillments_update', [MockVendorController::class, 'bulkFulfillmentsUpdate']);
+    Route::get('/accounts/{accountId}/products', [MockVendorController::class, 'products']);
+    Route::post('/accounts/{accountId}/products', [MockVendorController::class, 'createProduct']);
+    Route::put('/accounts/{accountId}/products/{vendor_reference}', [MockVendorController::class, 'updateProduct']);
+    Route::delete('/accounts/{accountId}/products/{vendor_reference}', [MockVendorController::class, 'deleteProduct']);
+    Route::get('/accounts/{accountId}/products/{vendor_reference}/inventory', [MockVendorController::class, 'productInventory']);
+    Route::put('/accounts/{accountId}/products/{vendor_reference}/inventory', [MockVendorController::class, 'updateProductInventory']);
+    Route::put('/accounts/{accountId}/products/{vendor_reference}/price', [MockVendorController::class, 'updateProductPrice']);
+    Route::put('/accounts/{accountId}/orders/{orderId}/cancel', [MockVendorController::class, 'cancelOrder']);
+    Route::post('/accounts/{accountId}/orders/{orderId}/refund', [MockVendorController::class, 'refundOrder']);
 });

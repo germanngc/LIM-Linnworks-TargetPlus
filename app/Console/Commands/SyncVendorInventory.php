@@ -2,17 +2,17 @@
 
 namespace App\Console\Commands;
 
-use App\Models\TpProduct;
+use App\Models\VendorProduct;
 use App\Models\Tenant;
-use App\Services\TargetPlusService;
+use App\Services\VendorApiService;
 use App\Services\SyncLogService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
-class SyncTargetInventory extends Command
+class SyncVendorInventory extends Command
 {
-    protected $signature = 'tp:sync-inventory {tenant_id? : Limit to a specific tenant}';
-    protected $description = 'Sync Target Plus stock availability into the local product inventory table.';
+    protected $signature = 'vendor:sync-inventory {tenant_id? : Limit to a specific tenant}';
+    protected $description = 'Sync Vendor stock availability into the local product inventory table.';
 
     public function handle(SyncLogService $syncLogs): int
     {
@@ -24,7 +24,7 @@ class SyncTargetInventory extends Command
             $result = $this->syncTenantInventory($tenant);
             $success = $result['failed'] === 0;
             $details = $result['failureMessages'] ? ' ' . implode(' | ', $result['failureMessages']) : '';
-            $syncLogs->record($tenant, 'tp_to_lw', 'inventory_pull', $success, "Inventory synced: {$result['synced']}; failed: {$result['failed']}.{$details}");
+            $syncLogs->record($tenant, 'vendor_to_lw', 'inventory_pull', $success, "Inventory synced: {$result['synced']}; failed: {$result['failed']}.{$details}");
             $hasFailures = $hasFailures || !$success;
         }
 
@@ -33,18 +33,18 @@ class SyncTargetInventory extends Command
 
     private function syncTenantInventory(Tenant $tenant): array
     {
-        $tp = new TargetPlusService($tenant);
-        $products = TpProduct::where('tenant_id', $tenant->id)->get();
+        $tp = new VendorApiService($tenant);
+        $products = VendorProduct::where('tenant_id', $tenant->id)->get();
         $synced = 0;
         $failed = 0;
         $failureMessages = [];
 
         foreach ($products as $product) {
-            $inventory = $tp->getProductInventory($product->tcin);
+            $inventory = $tp->getProductInventory($product->vendor_reference);
 
             if ($inventory === null) {
                 $failed++;
-                $failureMessages[] = "{$product->tcin}: {$tp->lastFailureMessage()}";
+                $failureMessages[] = "{$product->vendor_reference}: {$tp->lastFailureMessage()}";
                 continue;
             }
 
@@ -54,7 +54,7 @@ class SyncTargetInventory extends Command
                 'status' => $inventory['status'] ?? $product->status,
             ]);
 
-            Log::info("Inventory synced: tenant={$tenant->id} tcin={$product->tcin} qty={$product->available_quantity}");
+            Log::info("Inventory synced: tenant={$tenant->id} vendor_reference={$product->vendor_reference} qty={$product->available_quantity}");
             $synced++;
         }
 

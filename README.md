@@ -1,6 +1,6 @@
-# Linnworks Target Plus Integration
+# Linnworks Channel Integration Skeleton
 
-This project is a Laravel application that connects a Linnworks account to Target Plus for order synchronization, catalog sync, inventory updates, and fulfillment status flows.
+This project is a Laravel application that connects a Linnworks account to a vendor for order synchronization, catalog sync, inventory updates, and fulfillment status flows.
 
 Channel configuration decisions for Linnworks (Orders/Inventory/Listings) are documented in:
 
@@ -9,13 +9,13 @@ Channel configuration decisions for Linnworks (Orders/Inventory/Listings) are do
 End-user documentation is available in:
 
 - [docs/USER_MANUAL.md](docs/USER_MANUAL.md)
-- [docs/target-plus-user-workflow.drawio](docs/target-plus-user-workflow.drawio)
+- [docs/linnworks-channel-user-workflow.drawio](docs/linnworks-channel-user-workflow.drawio)
 
 The app is designed around a tenant-based setup flow:
 
 - A user starts from Linnworks and authorizes the integration.
 - The app creates or updates a tenant record.
-- The user enters Target Plus seller credentials for that tenant.
+- The user enters vendor credentials for that tenant.
 - Background jobs keep orders, inventory, and catalog state synchronized.
 
 ---
@@ -29,17 +29,17 @@ Before setting up the integration, make sure you have the following:
 - Node.js 18+ and npm
 - Docker Desktop or Docker Engine (for the local MySQL container)
 - A Linnworks application configured with the correct authorization flow
-- A Target Plus seller account and API credentials
+- A vendor account and API credentials
 - A public HTTPS base URL for production deployment
 
 You will also need these values available before the app can fully function:
 
 - `LINNWORKS_APP_ID`
 - `LINNWORKS_APP_SECRET`
-- `Target Plus API key`
-- `Target Plus seller ID`
-- `Target Plus seller token`
-- `Target environment`: `prod` or `stage`
+- `vendor API key`
+- `vendor account ID`
+- `vendor account token`
+- `vendor environment`: `prod` or `stage`
 
 ---
 
@@ -91,15 +91,15 @@ Then update the values in `.env` for local development. The app expects a MySQL 
 Example local configuration:
 
 ```env
-APP_NAME="Linnworks Target Plus"
+APP_NAME="Linnworks Channel"
 APP_ENV=local
 APP_URL=http://localhost
 
 DB_CONNECTION=mysql
 DB_HOST=localhost
 DB_PORT=9308
-DB_DATABASE=linnworks_targetplus
-DB_USERNAME=linnworks_targetplus_usr
+DB_DATABASE=linnworks_channel
+DB_USERNAME=linnworks_channel_usr
 DB_PASSWORD=your_db_password
 
 LINNWORKS_APP_ID=your_linnworks_app_id
@@ -160,14 +160,14 @@ The first route loads the Linnworks authorization flow:
 /
 ```
 
-This page expects a `token` query parameter coming from Linnworks. Once validated, the app shows a form for the Target Plus credentials.
+This page expects a `token` query parameter coming from Linnworks. Once validated, the app shows a form for vendor credentials.
 
 The required fields are:
 
-- `target_api_key`
-- `target_seller_id`
-- `target_seller_token`
-- `target_environment` (`prod` or `stage`)
+- `vendor_api_key`
+- `vendor_account_id`
+- `vendor_account_token`
+- `vendor_environment` (`prod` or `stage`)
 
 After submission, the tenant is marked as active and the app starts processing integration jobs.
 
@@ -175,7 +175,7 @@ After submission, the tenant is marked as active and the app starts processing i
 
 The app schedules sync jobs in `routes/console.php`:
 
-- Pull Target Plus orders every 30 minutes
+- Pull vendor orders every 30 minutes
 - Push cancellations every 15 minutes
 - Refresh Linnworks tokens every 15 minutes
 - Sync catalog daily
@@ -251,16 +251,16 @@ Confirm that the Linnworks app is configured to redirect to the same domain and 
 https://your-domain.example.com/
 ```
 
-### Step 5: Configure the Target Plus tenant
+### Step 5: Configure the the vendor tenant
 
 Once the app is live, open the root route from the Linnworks authorization flow and complete the setup form for each tenant with:
 
-- `target_api_key`
-- `target_seller_id`
-- `target_seller_token`
-- `target_environment` (`prod` or `stage`)
+- `vendor_api_key`
+- `vendor_account_id`
+- `vendor_account_token`
+- `vendor_environment` (`prod` or `stage`)
 
-The app stores these values encrypted and uses them when connecting to Target Plus.
+The app stores these values encrypted and uses them when connecting to vendor.
 
 ### Step 6: Run background workers and scheduler
 
@@ -286,20 +286,20 @@ php artisan queue:work --tries=3 --timeout=90
 After setup, confirm the following work correctly:
 
 - Linnworks token validation succeeds
-- Target Plus credentials save correctly
+- vendor credentials save correctly
 - tenant is marked `active`
-- orders are imported from Target Plus
+- orders are imported from vendor
 - inventory and catalog sync jobs complete
-- dispatch updates flow back to Target Plus
+- dispatch updates flow back to vendor
 
 ---
 
 ## Common Notes
 
-- The app intentionally encrypts Target Plus credentials on the `Tenant` model before storing them.
-- The `target_environment` value controls the base URL:
-  - `prod` -> `https://api.target.com/seller_orders/v1`
-  - `stage` -> `https://stage-api.target.com/seller_orders/v1`
+- The app intentionally encrypts vendor credentials on the `Tenant` model before storing them.
+- The `vendor_environment` value controls the base URL:
+  - `prod` -> `https://api.vendor.com/channel_api/v1`
+  - `stage` -> `https://stage-api.vendor.com/channel_api/v1`
 - The app depends on the public URL being reachable from the Linnworks authorization flow.
 
 ---

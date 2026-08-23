@@ -11,9 +11,9 @@ return new class extends Migration
         Schema::create('sync_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tenant_id')->constrained('tenants')->cascadeOnDelete();
-            $table->string('direction', 20); // 'tp_to_lw' | 'lw_to_tp'
+            $table->string('direction', 20); // 'vendor_to_lw' | 'lw_to_vendor'
             $table->string('event', 40);     // 'pull' | 'despatch' | 'cancel'
-            $table->string('target_order_id')->nullable();
+            $table->string('vendor_order_id')->nullable();
             $table->boolean('success');
             $table->text('message')->nullable();
             $table->timestamp('logged_at')->useCurrent();

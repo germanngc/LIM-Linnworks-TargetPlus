@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Linnworks Target Plus Bridge — Setup</title>
+    <title>Linnworks Channel Bridge — Setup</title>
     <style>
         :root {
             --tp-red: #cc0000;
@@ -119,13 +119,13 @@
 <body>
 <div class="card">
     <div class="head">
-        <div class="brand">Linnworks <span style="color:#8a95a5;">×</span> <strong>Target Plus</strong></div>
+        <div class="brand">Linnworks <span style="color:#8a95a5;">×</span> <strong>Vendor</strong></div>
         <div class="state">Embedded App</div>
     </div>
 
     <div class="body">
-    <h1>Connect Your Seller Account</h1>
-    <p class="sub">Configure Target Plus credentials for this Linnworks tenant.</p>
+    <h1>Connect Your Vendor Account</h1>
+    <p class="sub">Configure vendor credentials for this Linnworks tenant.</p>
 
     @if ($errors->any())
         <div class="alert">
@@ -143,23 +143,23 @@
         @csrf
         <input type="hidden" name="authorization_token" value="{{ $tenant->authorization_token }}">
 
-        <label for="target_api_key">developer.target.com API Key (x-api-key)</label>
-        <input type="password" id="target_api_key" name="target_api_key" required autocomplete="off"
+        <label for="vendor_api_key">developer.vendor.com API Key (x-api-key)</label>
+        <input type="password" id="vendor_api_key" name="vendor_api_key" required autocomplete="off"
                placeholder="{{ $configured ? '••••••••  (leave blank to keep current)' : 'Enter your API key' }}">
 
-        <label for="target_seller_id">Seller ID (x-seller-id)</label>
-        <input type="text" id="target_seller_id" name="target_seller_id" required
-               value="{{ old('target_seller_id', $configured ? $tenant->target_seller_id : '') }}"
+        <label for="vendor_account_id">Account ID (x-vendor-account-id)</label>
+        <input type="text" id="vendor_account_id" name="vendor_account_id" required
+               value="{{ old('vendor_account_id', $configured ? $tenant->vendor_account_id : '') }}"
                placeholder="5d9b63230b782d009720a6cb">
 
-        <label for="target_seller_token">Seller Token (x-seller-token)</label>
-        <input type="password" id="target_seller_token" name="target_seller_token" required autocomplete="off"
-               placeholder="{{ $configured ? '••••••••  (leave blank to keep current)' : 'Enter your seller token' }}">
+        <label for="vendor_account_token">Account Token (x-vendor-account-token)</label>
+        <input type="password" id="vendor_account_token" name="vendor_account_token" required autocomplete="off"
+               placeholder="{{ $configured ? '••••••••  (leave blank to keep current)' : 'Enter your account token' }}">
 
-        <label for="target_environment">Environment</label>
-        <select id="target_environment" name="target_environment">
-            <option value="prod" {{ ($tenant->target_environment ?? 'prod') === 'prod' ? 'selected' : '' }}>Production</option>
-            <option value="stage" {{ ($tenant->target_environment ?? '') === 'stage' ? 'selected' : '' }}>Stage (Sandbox)</option>
+        <label for="vendor_environment">Environment</label>
+        <select id="vendor_environment" name="vendor_environment">
+            <option value="prod" {{ ($tenant->vendor_environment ?? 'prod') === 'prod' ? 'selected' : '' }}>Production</option>
+            <option value="stage" {{ ($tenant->vendor_environment ?? '') === 'stage' ? 'selected' : '' }}>Stage (Sandbox)</option>
         </select>
 
         <button type="submit" class="btn">Save &amp; Connect</button>

@@ -4,45 +4,45 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class TpOrder extends Model
+class VendorOrder extends Model
 {
-    protected $table = 'tp_orders';
+    protected $table = 'vendor_orders';
 
     protected $fillable = [
         'tenant_id',
-        'target_order_id',
-        'target_order_number',
-        'target_status',
-        'target_order_date',
-        'target_updated_at',
-        'target_payload',
-        'target_address',
-        'target_payload_checksum',
+        'vendor_order_id',
+        'vendor_order_number',
+        'vendor_status',
+        'vendor_order_date',
+        'vendor_updated_at',
+        'vendor_payload',
+        'vendor_address',
+        'vendor_payload_checksum',
         'tracking_number',
         'carrier',
         'shipped_date',
         'lw_payment_status',
-        'pushed_to_target_at',
-        'cancel_pushed_to_target',
+        'pushed_to_vendor_at',
+        'cancel_pushed_to_vendor',
         'sync_status',
         'synced_to_linnworks_at',
         'sync_attempt',
         'last_sync_error',
         'refund_reference',
-        'refunded_to_target_at',
+        'refunded_to_vendor_at',
         'despatch_checksum',
     ];
 
     protected $casts = [
-        'target_payload' => 'array',
-        'target_address' => 'array',
-        'target_order_date' => 'datetime',
-        'target_updated_at' => 'datetime',
+        'vendor_payload' => 'array',
+        'vendor_address' => 'array',
+        'vendor_order_date' => 'datetime',
+        'vendor_updated_at' => 'datetime',
         'shipped_date' => 'datetime',
-        'pushed_to_target_at' => 'datetime',
+        'pushed_to_vendor_at' => 'datetime',
         'synced_to_linnworks_at' => 'datetime',
-        'cancel_pushed_to_target' => 'boolean',
-        'refunded_to_target_at' => 'datetime',
+        'cancel_pushed_to_vendor' => 'boolean',
+        'refunded_to_vendor_at' => 'datetime',
     ];
 
     public const SYNC_PENDING = 'pending';
@@ -58,7 +58,7 @@ class TpOrder extends Model
     // Terminal statuses that Linnworks must see as CANCELLED
     public const TERMINAL_STATUSES = ['CANCELED', 'REFUNDED'];
 
-    // Active statuses — orders still open on Target Plus side
+    // Active statuses — orders still open on Vendor side
     public const ACTIVE_STATUSES = [
         'NEW',
         'PROCESSING',
@@ -71,6 +71,6 @@ class TpOrder extends Model
 
     public function lwPaymentStatus(): string
     {
-        return in_array($this->target_status, self::TERMINAL_STATUSES) ? 'CANCELLED' : 'PAID';
+        return in_array($this->vendor_status, self::TERMINAL_STATUSES) ? 'CANCELLED' : 'PAID';
     }
 }

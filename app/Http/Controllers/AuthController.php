@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\TpProduct;
+use App\Models\VendorProduct;
 use App\Models\Tenant;
-use App\Models\TpOrder;
+use App\Models\VendorOrder;
 use App\Services\LinnworksService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -57,9 +57,9 @@ class AuthController extends Controller
                 'linnworks_server'            => $lwData['Server'] ?? 'https://api.linnworks.net',
                 'authorization_token'         => Tenant::generateAuthorizationToken(),
                 // Placeholder encrypted values — overwritten on form submit
-                'target_api_key'              => '_pending_',
-                'target_seller_id'            => '_pending_',
-                'target_seller_token'         => '_pending_',
+                'vendor_api_key'              => '_pending_',
+                'vendor_account_id'            => '_pending_',
+                'vendor_account_token'         => '_pending_',
             ]
         );
 
@@ -70,7 +70,7 @@ class AuthController extends Controller
             'linnworks_server'            => $lwData['Server'] ?? $tenant->linnworks_server,
         ]);
 
-        $configured = !str_starts_with($tenant->target_api_key, '_pending_');
+        $configured = !str_starts_with($tenant->vendor_api_key, '_pending_');
 
         $showAuthorizationToken = (bool) config('services.linnworks.channel_integration');
 
@@ -88,16 +88,16 @@ class AuthController extends Controller
     }
 
     /**
-     * Step 2: User submits their Target Plus credentials.
+     * Step 2: User submits their Vendor credentials.
      */
     public function save(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'authorization_token' => 'required|uuid',
-            'target_api_key'      => 'required|string|min:8',
-            'target_seller_id'    => 'required|string|min:4',
-            'target_seller_token' => 'required|string|min:8',
-            'target_environment'  => 'required|in:prod,stage',
+            'vendor_api_key'      => 'required|string|min:8',
+            'vendor_account_id'    => 'required|string|min:4',
+            'vendor_account_token' => 'required|string|min:8',
+            'vendor_environment'  => 'required|in:prod,stage',
         ]);
 
         if ($validator->fails()) {
@@ -107,10 +107,10 @@ class AuthController extends Controller
         $tenant = Tenant::where('authorization_token', $request->authorization_token)->firstOrFail();
 
         $tenant->update([
-            'target_api_key'      => $request->target_api_key,
-            'target_seller_id'    => $request->target_seller_id,
-            'target_seller_token' => $request->target_seller_token,
-            'target_environment'  => $request->target_environment,
+            'vendor_api_key'      => $request->vendor_api_key,
+            'vendor_account_id'    => $request->vendor_account_id,
+            'vendor_account_token' => $request->vendor_account_token,
+            'vendor_environment'  => $request->vendor_environment,
             'active'              => true,
         ]);
 
@@ -139,9 +139,9 @@ class AuthController extends Controller
         }
 
         $commands = [
-            'orders' => 'tp:pull-orders',
-            'inventory' => 'tp:sync-inventory',
-            'listings' => 'tp:sync-listings',
+            'orders' => 'vendor:pull-orders',
+            'inventory' => 'vendor:sync-inventory',
+            'listings' => 'vendor:sync-listings',
         ];
 
         $command = $commands[$type] ?? null;
@@ -162,9 +162,9 @@ class AuthController extends Controller
 
             dispatch(function () use ($tenantId, $type) {
                 $commands = [
-                    'orders' => 'tp:pull-orders',
-                    'inventory' => 'tp:sync-inventory',
-                    'listings' => 'tp:sync-listings',
+                    'orders' => 'vendor:pull-orders',
+                    'inventory' => 'vendor:sync-inventory',
+                    'listings' => 'vendor:sync-listings',
                 ];
 
                 $statusKey = "tenant:{$tenantId}:sync:{$type}:status";
@@ -201,7 +201,7 @@ class AuthController extends Controller
                     }
 
                     $message = match ($type) {
-                        'orders' => 'Orders pulled from Target Plus and push attempted to Linnworks.',
+                        'orders' => 'Orders pulled from Vendor and push attempted to Linnworks.',
                         'inventory' => 'Inventory sync completed.',
                         'listings' => 'Listings sync completed.',
                         default => ucfirst($type) . ' sync completed.',
@@ -280,19 +280,19 @@ class AuthController extends Controller
 
     private function buildDashboardData(Tenant $tenant): array
     {
-        $openOrders = TpOrder::where('tenant_id', $tenant->id)
-            ->whereIn('target_status', TpOrder::ACTIVE_STATUSES)
-            ->orderByDesc('target_order_date')
+        $openOrders = VendorOrder::where('tenant_id', $tenant->id)
+            ->whereIn('vendor_status', VendorOrder::ACTIVE_STATUSES)
+            ->orderByDesc('vendor_order_date')
             ->limit(8)
             ->get();
 
-        $products = TpProduct::where('tenant_id', $tenant->id)
+        $products = VendorProduct::where('tenant_id', $tenant->id)
             ->orderByDesc('linnworks_synced_at')
             ->orderByDesc('inventory_synced_at')
             ->limit(8)
             ->get();
 
-        $linkedCount = TpProduct::where('tenant_id', $tenant->id)
+        $linkedCount = VendorProduct::where('tenant_id', $tenant->id)
             ->whereNotNull('linnworks_channel_mapping_id')
             ->count();
 

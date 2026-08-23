@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\TpProduct;
+use App\Models\VendorProduct;
 use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -21,10 +21,10 @@ class ChannelInventoryUpdateTest extends TestCase
             'linnworks_token' => 'linnworks-session-token',
             'linnworks_server' => 'https://eu-ext.linnworks.net',
             'authorization_token' => Tenant::generateAuthorizationToken(),
-            'target_api_key' => 'target-api-key-123',
-            'target_seller_id' => 'seller-123',
-            'target_seller_token' => 'target-seller-token-123',
-            'target_environment' => 'prod',
+            'vendor_api_key' => 'vendor-api-key-123',
+            'vendor_account_id' => 'account-123',
+            'vendor_account_token' => 'vendor-account-token-123',
+            'vendor_environment' => 'prod',
             'active' => true,
         ]);
 
@@ -36,9 +36,9 @@ class ChannelInventoryUpdateTest extends TestCase
             'linnworks_email' => 'linnworks@limmedia.io',
         ]);
 
-        $mapped = TpProduct::create([
+        $mapped = VendorProduct::create([
             'tenant_id' => $tenant->id,
-            'tcin' => '12345678901',
+            'vendor_reference' => '12345678901',
             'external_id' => 'EXT-001',
             'sku' => 'SKU-MAPPED',
             'title' => 'Mapped Product',
@@ -48,13 +48,13 @@ class ChannelInventoryUpdateTest extends TestCase
             'raw_payload' => ['title' => 'Mapped Product'],
         ]);
 
-        config(['services.target_plus.base_url' => 'https://api.target.com/seller_orders/v1']);
+        config(['services.vendor_api.base_url' => 'https://api.vendor.com/channel_api/v1']);
 
         Http::preventStrayRequests();
         Http::fake([
-            'https://api.target.com/seller_orders/v1/sellers/seller-123/products/12345678901/inventory' => Http::response([
+            'https://api.vendor.com/channel_api/v1/accounts/account-123/products/12345678901/inventory' => Http::response([
                 'success' => true,
-                'tcin' => '12345678901',
+                'vendor_reference' => '12345678901',
                 'available_quantity' => 9,
             ], 200),
         ]);
@@ -82,7 +82,7 @@ class ChannelInventoryUpdateTest extends TestCase
             ->assertJsonPath('Products.0.SKU', 'SKU-MAPPED')
             ->assertJsonPath('Products.0.Error', null)
             ->assertJsonPath('Products.1.SKU', 'SKU-UNKNOWN')
-            ->assertJsonPath('Products.1.Error', 'SKU is not mapped to a Target Plus product')
+            ->assertJsonPath('Products.1.Error', 'SKU is not mapped to a Vendor product')
             ->assertJsonPath('Products.2.SKU', '')
             ->assertJsonPath('Products.2.Error', 'Missing SKU');
 
@@ -92,7 +92,7 @@ class ChannelInventoryUpdateTest extends TestCase
 
         Http::assertSentCount(1);
         Http::assertSent(function ($request) {
-            return $request->url() === 'https://api.target.com/seller_orders/v1/sellers/seller-123/products/12345678901/inventory'
+            return $request->url() === 'https://api.vendor.com/channel_api/v1/accounts/account-123/products/12345678901/inventory'
                 && $request['available_quantity'] === 9;
         });
     }

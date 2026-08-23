@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Tenant;
-use App\Models\TpListingFeed;
-use App\Models\TpOrder;
-use App\Models\TpProduct;
-use App\Services\TargetPlusService;
+use App\Models\VendorListingFeed;
+use App\Models\VendorOrder;
+use App\Models\VendorProduct;
+use App\Services\VendorApiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -75,10 +75,10 @@ class ChannelIntegrationController extends Controller
                         'linnworks_token' => '',
                         'linnworks_server' => 'https://api.linnworks.net',
                         'authorization_token' => $token,
-                        'target_api_key' => '_pending_',
-                        'target_seller_id' => '_pending_',
-                        'target_seller_token' => '_pending_',
-                        'target_environment' => 'stage',
+                        'vendor_api_key' => '_pending_',
+                        'vendor_account_id' => '_pending_',
+                        'vendor_account_token' => '_pending_',
+                        'vendor_environment' => 'stage',
                         'active' => true,
                     ]);
                 }
@@ -88,10 +88,10 @@ class ChannelIntegrationController extends Controller
         if (!$tenant) {
             $tenant = new Tenant([
                 'linnworks_email' => '',
-                'target_api_key' => '_pending_',
-                'target_seller_id' => '_pending_',
-                'target_seller_token' => '_pending_',
-                'target_environment' => 'stage',
+                'vendor_api_key' => '_pending_',
+                'vendor_account_id' => '_pending_',
+                'vendor_account_token' => '_pending_',
+                'vendor_environment' => 'stage',
             ]);
         }
 
@@ -118,24 +118,24 @@ class ChannelIntegrationController extends Controller
             });
 
         $apiKeyFromConfig = (string) ($configItemsById->get('APIKey') ?? '');
-        $sellerIdFromConfig = (string) ($configItemsById->get('SellerId') ?? '');
-        $sellerTokenFromConfig = (string) ($configItemsById->get('SellerToken') ?? '');
+        $accountIdFromConfig = (string) ($configItemsById->get('AccountId') ?? '');
+        $accountTokenFromConfig = (string) ($configItemsById->get('AccountToken') ?? '');
         $environmentFromConfig = (string) ($configItemsById->get('Environment') ?? '');
 
-        $resolvedApiKey = (string) ($request->input('target_api_key') ?? $request->input('ApiKey') ?? ($apiKeyFromConfig !== '' ? $apiKeyFromConfig : $tenant->target_api_key));
-        $resolvedSellerId = (string) ($request->input('target_seller_id') ?? $request->input('SellerId') ?? ($sellerIdFromConfig !== '' ? $sellerIdFromConfig : $tenant->target_seller_id));
-        $resolvedSellerToken = (string) ($request->input('target_seller_token') ?? $request->input('SellerToken') ?? ($sellerTokenFromConfig !== '' ? $sellerTokenFromConfig : $tenant->target_seller_token));
-        $resolvedEnvironment = (string) ($request->input('target_environment') ?? $request->input('Environment') ?? ($environmentFromConfig !== '' ? $environmentFromConfig : $tenant->target_environment));
+        $resolvedApiKey = (string) ($request->input('vendor_api_key') ?? $request->input('ApiKey') ?? ($apiKeyFromConfig !== '' ? $apiKeyFromConfig : $tenant->vendor_api_key));
+        $resolvedAccountId = (string) ($request->input('vendor_account_id') ?? $request->input('AccountId') ?? ($accountIdFromConfig !== '' ? $accountIdFromConfig : $tenant->vendor_account_id));
+        $resolvedAccountToken = (string) ($request->input('vendor_account_token') ?? $request->input('AccountToken') ?? ($accountTokenFromConfig !== '' ? $accountTokenFromConfig : $tenant->vendor_account_token));
+        $resolvedEnvironment = (string) ($request->input('vendor_environment') ?? $request->input('Environment') ?? ($environmentFromConfig !== '' ? $environmentFromConfig : $tenant->vendor_environment));
 
-        if (collect([$resolvedApiKey, $resolvedSellerId, $resolvedSellerToken])->contains(fn ($value) => trim($value) === '')) {
-            return response()->json(['Error' => 'API key, seller ID, and seller token are required.']);
+        if (collect([$resolvedApiKey, $resolvedAccountId, $resolvedAccountToken])->contains(fn ($value) => trim($value) === '')) {
+            return response()->json(['Error' => 'API key, account ID, and account token are required.']);
         }
 
         $tenant->update([
-            'target_api_key' => $resolvedApiKey,
-            'target_seller_id' => $resolvedSellerId,
-            'target_seller_token' => $resolvedSellerToken,
-            'target_environment' => in_array($resolvedEnvironment, ['stage', 'prod'], true) ? $resolvedEnvironment : 'stage',
+            'vendor_api_key' => $resolvedApiKey,
+            'vendor_account_id' => $resolvedAccountId,
+            'vendor_account_token' => $resolvedAccountToken,
+            'vendor_environment' => in_array($resolvedEnvironment, ['stage', 'prod'], true) ? $resolvedEnvironment : 'stage',
             'active' => true,
         ]);
 
@@ -183,8 +183,8 @@ class ChannelIntegrationController extends Controller
             'Error' => null,
             'PaymentTags' => [
                 [
-                    'Tag' => 'target_plus',
-                    'FriendlyName' => 'Target Plus',
+                    'Tag' => 'vendor_api',
+                    'FriendlyName' => 'Vendor',
                     'Site' => '',
                 ],
             ],
@@ -217,13 +217,13 @@ class ChannelIntegrationController extends Controller
             ], 401);
         }
 
-        if (!$tenant->hasTargetPlusCredentials()) {
-            return response()->json(['Error' => 'Target Plus credentials are incomplete.', 'Success' => false, 'Message' => 'Complete the channel credentials before testing.']);
+        if (!$tenant->hasVendorCredentials()) {
+            return response()->json(['Error' => 'Vendor credentials are incomplete.', 'Success' => false, 'Message' => 'Complete the channel credentials before testing.']);
         }
 
-        $tp = new TargetPlusService($tenant);
+        $tp = new VendorApiService($tenant);
         if (!$tp->testConnection()) {
-            return response()->json(['Error' => $tp->lastFailureMessage(), 'Success' => false, 'Message' => 'Target Plus connection test failed.']);
+            return response()->json(['Error' => $tp->lastFailureMessage(), 'Success' => false, 'Message' => 'Vendor connection test failed.']);
         }
 
         return response()->json([
@@ -250,11 +250,11 @@ class ChannelIntegrationController extends Controller
         $cancellation = (array) $request->input('Cancellation', []);
         $orderId = (string) ($cancellation['ReferenceNumber'] ?? '');
         return DB::transaction(function () use ($tenant, $cancellation, $orderId) {
-            $order = TpOrder::where('tenant_id', $tenant->id)->where('target_order_id', $orderId)->lockForUpdate()->first();
+            $order = VendorOrder::where('tenant_id', $tenant->id)->where('vendor_order_id', $orderId)->lockForUpdate()->first();
             if (!$order) return response()->json(['Error' => 'Could not process cancellation.']);
-            if ($order->cancel_pushed_to_target) return response()->json(['Error' => null]);
-            if (!(new TargetPlusService($tenant))->cancelOrder($orderId, $cancellation)) return response()->json(['Error' => 'Could not process cancellation.']);
-            $order->update(['target_status' => 'CANCELED', 'cancel_pushed_to_target' => true, 'target_updated_at' => now()]);
+            if ($order->cancel_pushed_to_vendor) return response()->json(['Error' => null]);
+            if (!(new VendorApiService($tenant))->cancelOrder($orderId, $cancellation)) return response()->json(['Error' => 'Could not process cancellation.']);
+            $order->update(['vendor_status' => 'CANCELED', 'cancel_pushed_to_vendor' => true, 'vendor_updated_at' => now()]);
             return response()->json(['Error' => null]);
         });
     }
@@ -265,13 +265,13 @@ class ChannelIntegrationController extends Controller
         $refund = (array) $request->input('Refund', []);
         $orderId = (string) ($refund['ReferenceNumber'] ?? '');
         return DB::transaction(function () use ($tenant, $refund, $orderId) {
-            $order = TpOrder::where('tenant_id', $tenant->id)->where('target_order_id', $orderId)->lockForUpdate()->first();
+            $order = VendorOrder::where('tenant_id', $tenant->id)->where('vendor_order_id', $orderId)->lockForUpdate()->first();
             if (!$order) return response()->json(['Error' => 'Could not process refund.', 'RefundReference' => '']);
             if ($order->refund_reference) return response()->json(['Error' => null, 'RefundReference' => $order->refund_reference]);
-            $result = (new TargetPlusService($tenant))->refundOrder($orderId, $refund);
+            $result = (new VendorApiService($tenant))->refundOrder($orderId, $refund);
             if ($result === null) return response()->json(['Error' => 'Could not process refund.', 'RefundReference' => '']);
             $reference = (string) ($result['refund_reference'] ?? Str::uuid());
-            $order->update(['target_status' => 'REFUNDED', 'target_updated_at' => now(), 'refund_reference' => $reference, 'refunded_to_target_at' => now()]);
+            $order->update(['vendor_status' => 'REFUNDED', 'vendor_updated_at' => now(), 'refund_reference' => $reference, 'refunded_to_vendor_at' => now()]);
             return response()->json(['Error' => null, 'RefundReference' => $reference]);
         });
     }
@@ -303,7 +303,7 @@ class ChannelIntegrationController extends Controller
         $pageNumber = max(1, (int) $request->input('PageNumber', 1));
         $offset = ($pageNumber - 1) * self::PRODUCT_PAGE_SIZE;
 
-        $query = TpProduct::query()
+        $query = VendorProduct::query()
             ->where('tenant_id', $tenant->id)
             ->whereNotNull('sku')
             ->where('sku', '!=', '');
@@ -314,7 +314,7 @@ class ChannelIntegrationController extends Controller
             ->skip($offset)
             ->take(self::PRODUCT_PAGE_SIZE)
             ->get()
-            ->map(function (TpProduct $product): array {
+            ->map(function (VendorProduct $product): array {
                 $raw = $product->raw_payload ?? [];
 
                 return [
@@ -322,7 +322,7 @@ class ChannelIntegrationController extends Controller
                     'Title' => (string) ($product->title ?: $product->sku),
                     'Quantity' => max(0, (int) $product->available_quantity),
                     'Price' => (float) $product->price,
-                    'Reference' => mb_substr((string) ($product->tcin ?: $product->external_id ?: $product->sku), 0, 64),
+                    'Reference' => mb_substr((string) ($product->vendor_reference ?: $product->external_id ?: $product->sku), 0, 64),
                 ];
             })
             ->values()
@@ -348,7 +348,7 @@ class ChannelIntegrationController extends Controller
         $tenant = $request->attributes->get('tenant');
         $products = (array) $request->input('Products', []);
 
-        $tp = new TargetPlusService($tenant);
+        $tp = new VendorApiService($tenant);
         $results = [];
 
         foreach ($products as $product) {
@@ -368,14 +368,14 @@ class ChannelIntegrationController extends Controller
                 continue;
             }
 
-            $tpProduct = TpProduct::query()
+            $tpProduct = VendorProduct::query()
                 ->where('tenant_id', $tenant->id)
                 ->where(function ($query) use ($sku, $reference) {
                     $query->where('sku', $sku);
 
                     if ($reference !== '') {
                         $query->orWhere('external_id', $reference)
-                            ->orWhere('tcin', $reference);
+                            ->orWhere('vendor_reference', $reference);
                     }
                 })
                 ->first();
@@ -383,18 +383,18 @@ class ChannelIntegrationController extends Controller
             if (!$tpProduct) {
                 $results[] = [
                     'SKU' => $sku,
-                    'Error' => 'SKU is not mapped to a Target Plus product',
+                    'Error' => 'SKU is not mapped to a Vendor product',
                 ];
                 continue;
             }
 
-            $remoteIdentifier = $tpProduct->tcin ?: ($reference !== '' ? $reference : $sku);
+            $remoteIdentifier = $tpProduct->vendor_reference ?: ($reference !== '' ? $reference : $sku);
             $updated = $tp->updateProductInventory($remoteIdentifier, $quantity);
 
             if (!$updated) {
                 $results[] = [
                     'SKU' => $sku,
-                    'Error' => 'Target Plus inventory update failed',
+                    'Error' => 'Vendor inventory update failed',
                 ];
                 continue;
             }
@@ -425,16 +425,16 @@ class ChannelIntegrationController extends Controller
     public function priceUpdate(Request $request): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');
-        $tp = new TargetPlusService($tenant);
+        $tp = new VendorApiService($tenant);
         $results = [];
         foreach ((array) $request->input('Products', []) as $item) {
             $sku = trim((string) ($item['SKU'] ?? ''));
             $reference = trim((string) ($item['Reference'] ?? ''));
-            $product = TpProduct::where('tenant_id', $tenant->id)
-                ->where(fn ($q) => $q->where('sku', $sku)->orWhere('tcin', $reference)->orWhere('external_id', $reference))->first();
+            $product = VendorProduct::where('tenant_id', $tenant->id)
+                ->where(fn ($q) => $q->where('sku', $sku)->orWhere('vendor_reference', $reference)->orWhere('external_id', $reference))->first();
             if (!$product) { $results[] = ['SKU' => $sku, 'Error' => 'SKU does not exist']; continue; }
             $price = max(0, (float) ($item['Price'] ?? 0));
-            if (!$tp->updateProductPrice($product->tcin, $price)) { $results[] = ['SKU' => $sku, 'Error' => 'Target Plus price update failed']; continue; }
+            if (!$tp->updateProductPrice($product->vendor_reference, $price)) { $results[] = ['SKU' => $sku, 'Error' => 'Vendor price update failed']; continue; }
             $product->update(['price' => $price]);
             $results[] = ['SKU' => $sku, 'Error' => null];
         }
@@ -456,7 +456,7 @@ class ChannelIntegrationController extends Controller
                 'Subtitle' => 'Product',
                 'SubTitleSortOrder' => 1,
                 'ItemSortOrder' => 1,
-                'Description' => 'Condition submitted with the Target Plus listing.',
+                'Description' => 'Condition submitted with the Vendor listing.',
                 'FriendlyName' => 'Condition',
                 'MustBeSpecified' => true,
                 'ExpectedType' => 'LIST',
@@ -546,7 +546,7 @@ class ChannelIntegrationController extends Controller
         $listings = $this->requestArray($request, 'Listings');
         $settings = $this->requestArray($request, 'Settings');
         $requestHash = hash('sha256', json_encode(['Type' => $operation, 'Listings' => $listings, 'Settings' => $settings]));
-        $existingFeed = TpListingFeed::where('tenant_id', $tenant->id)->where('operation', $operation)->where('request_hash', $requestHash)->first();
+        $existingFeed = VendorListingFeed::where('tenant_id', $tenant->id)->where('operation', $operation)->where('request_hash', $requestHash)->first();
         if ($existingFeed && !$this->listingFeedHasErrors($existingFeed)) {
             Log::info('ChannelIntegration ListingUpdate duplicate request', [
                 'tenant_id' => $tenant->id,
@@ -563,7 +563,7 @@ class ChannelIntegrationController extends Controller
                 'channel_feed_id' => $existingFeed->channel_feed_id,
             ]);
         }
-        $tp = new TargetPlusService($tenant);
+        $tp = new VendorApiService($tenant);
         $productFeeds = [];
 
         Log::info('ChannelIntegration ListingUpdate received', [
@@ -582,7 +582,7 @@ class ChannelIntegrationController extends Controller
             $sku = trim((string) ($listing['SKU'] ?? ''));
             $templateId = (int) ($listing['TemplateId'] ?? 0);
             $externalId = trim((string) ($listing['ExternalListingId'] ?? ''));
-            $payload = $this->mapListingToTargetProduct($listing);
+            $payload = $this->mapListingToVendorProduct($listing);
 
             Log::info('ChannelIntegration ListingUpdate processing listing', [
                 'tenant_id' => $tenant->id,
@@ -590,7 +590,7 @@ class ChannelIntegrationController extends Controller
                 'template_id' => $templateId,
                 'sku' => $sku,
                 'external_listing_id' => $externalId,
-                'target_payload' => [
+                'vendor_payload' => [
                     'sku' => $payload['sku'],
                     'title' => $payload['title'],
                     'quantity' => $payload['available_quantity'],
@@ -606,22 +606,22 @@ class ChannelIntegrationController extends Controller
                 : $tp->createProduct($payload));
 
             if ($response === null) {
-                Log::warning('ChannelIntegration ListingUpdate target request failed', [
+                Log::warning('ChannelIntegration ListingUpdate vendor request failed', [
                     'tenant_id' => $tenant->id,
                     'operation' => $operation,
                     'template_id' => $templateId,
                     'sku' => $sku,
                     'external_listing_id' => $externalId,
-                    'target_failure' => $sku === '' ? 'Missing SKU.' : $tp->lastFailureMessage(),
+                    'vendor_failure' => $sku === '' ? 'Missing SKU.' : $tp->lastFailureMessage(),
                 ]);
 
-                $productFeeds[] = $this->listingFeedResult($sku, $templateId, $externalId, null, $sku === '' ? 'Missing SKU.' : 'Target Plus listing request failed.');
+                $productFeeds[] = $this->listingFeedResult($sku, $templateId, $externalId, null, $sku === '' ? 'Missing SKU.' : 'Vendor listing request failed.');
                 continue;
             }
 
-            $reference = (string) ($response['tcin'] ?? $response['external_id'] ?? ($externalId !== '' ? $externalId : $sku));
-            $product = TpProduct::updateOrCreate(
-                ['tenant_id' => $tenant->id, 'tcin' => $reference],
+            $reference = (string) ($response['vendor_reference'] ?? $response['external_id'] ?? ($externalId !== '' ? $externalId : $sku));
+            $product = VendorProduct::updateOrCreate(
+                ['tenant_id' => $tenant->id, 'vendor_reference' => $reference],
                 [
                     'external_id' => (string) ($response['external_id'] ?? $reference),
                     'sku' => $sku,
@@ -634,13 +634,13 @@ class ChannelIntegrationController extends Controller
                 ]
             );
 
-            Log::info('ChannelIntegration ListingUpdate mapped to Target product', [
+            Log::info('ChannelIntegration ListingUpdate mapped to vendor product', [
                 'tenant_id' => $tenant->id,
                 'operation' => $operation,
                 'template_id' => $templateId,
                 'sku' => $sku,
-                'tp_product_id' => $product->id,
-                'target_reference' => $reference,
+                'vendor_product_id' => $product->id,
+                'vendor_reference' => $reference,
                 'external_listing_id' => (string) ($response['external_id'] ?? $reference),
                 'listing_active' => $product->listing_active,
             ]);
@@ -664,10 +664,10 @@ class ChannelIntegrationController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('tenant');
-        $tp = new TargetPlusService($tenant);
+        $tp = new VendorApiService($tenant);
         $externalListingIds = $this->requestArray($request, 'ExternalListingIds');
         $requestHash = hash('sha256', json_encode($externalListingIds));
-        $existingFeed = TpListingFeed::where('tenant_id', $tenant->id)->where('operation', 'delete')->where('request_hash', $requestHash)->first();
+        $existingFeed = VendorListingFeed::where('tenant_id', $tenant->id)->where('operation', 'delete')->where('request_hash', $requestHash)->first();
         if ($existingFeed && !$this->listingFeedHasErrors($existingFeed)) {
             Log::info('ChannelIntegration ListingDelete duplicate request', [
                 'tenant_id' => $tenant->id,
@@ -696,11 +696,11 @@ class ChannelIntegrationController extends Controller
             $templateId = (int) ($listing['TemplateId'] ?? 0);
             $deleted = $externalId !== '' && $tp->deleteProduct($externalId);
             if ($deleted) {
-                TpProduct::where('tenant_id', $tenant->id)
-                    ->where(fn ($query) => $query->where('tcin', $externalId)->orWhere('external_id', $externalId))
+                VendorProduct::where('tenant_id', $tenant->id)
+                    ->where(fn ($query) => $query->where('vendor_reference', $externalId)->orWhere('external_id', $externalId))
                     ->update(['listing_active' => false, 'status' => 'INACTIVE']);
             }
-            $productFeeds[] = $this->listingFeedResult($sku, $templateId, $externalId, $externalId, $deleted ? null : 'Target Plus listing delete failed.');
+            $productFeeds[] = $this->listingFeedResult($sku, $templateId, $externalId, $externalId, $deleted ? null : 'Vendor listing delete failed.');
         }
 
         $feed = $this->storeListingFeed($tenant, 'delete', $productFeeds, $requestHash, $existingFeed);
@@ -718,7 +718,7 @@ class ChannelIntegrationController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('tenant');
-        $feed = TpListingFeed::where('tenant_id', $tenant->id)
+        $feed = VendorListingFeed::where('tenant_id', $tenant->id)
             ->where('channel_feed_id', (string) $request->input('ChannelFeedId'))
             ->first();
 
@@ -753,7 +753,7 @@ class ChannelIntegrationController extends Controller
         ]);
     }
 
-    private function mapListingToTargetProduct(array $listing): array
+    private function mapListingToVendorProduct(array $listing): array
     {
         $attributes = collect((array) ($listing['Attributes'] ?? []))
             ->filter(fn ($attribute) => is_array($attribute))
@@ -808,7 +808,7 @@ class ChannelIntegrationController extends Controller
         return is_array($value) ? $value : [];
     }
 
-    private function listingFeedHasErrors(TpListingFeed $feed): bool
+    private function listingFeedHasErrors(VendorListingFeed $feed): bool
     {
         foreach ((array) $feed->product_feeds as $productFeed) {
             if (!empty($productFeed['Messages'] ?? [])) {
@@ -819,7 +819,7 @@ class ChannelIntegrationController extends Controller
         return false;
     }
 
-    private function storeListingFeed(Tenant $tenant, string $operation, array $productFeeds, string $requestHash, ?TpListingFeed $existingFeed = null): TpListingFeed
+    private function storeListingFeed(Tenant $tenant, string $operation, array $productFeeds, string $requestHash, ?VendorListingFeed $existingFeed = null): VendorListingFeed
     {
         if ($existingFeed) {
             $existingFeed->update([
@@ -829,7 +829,7 @@ class ChannelIntegrationController extends Controller
             return $existingFeed->refresh();
         }
 
-        return TpListingFeed::create([
+        return VendorListingFeed::create([
             'tenant_id' => $tenant->id,
             'channel_feed_id' => (string) Str::uuid(),
             'operation' => $operation,
@@ -876,10 +876,10 @@ class ChannelIntegrationController extends Controller
             'linnworks_token' => '',
             'linnworks_server' => 'https://api.linnworks.net',
             'authorization_token' => Tenant::generateAuthorizationToken(),
-            'target_api_key' => '_pending_',
-            'target_seller_id' => '_pending_',
-            'target_seller_token' => '_pending_',
-            'target_environment' => 'stage',
+            'vendor_api_key' => '_pending_',
+            'vendor_account_id' => '_pending_',
+            'vendor_account_token' => '_pending_',
+            'vendor_environment' => 'stage',
             'active' => true,
         ]);
     }
@@ -896,12 +896,12 @@ class ChannelIntegrationController extends Controller
     private function redactedPayload(Request $request): array
     {
         $payload = $request->all();
-        foreach (['AuthorizationToken', 'authorizationToken', 'target_api_key', 'ApiKey', 'SellerToken', 'target_seller_token'] as $key) {
+        foreach (['AuthorizationToken', 'authorizationToken', 'vendor_api_key', 'ApiKey', 'AccountToken', 'vendor_account_token'] as $key) {
             if (array_key_exists($key, $payload)) $payload[$key] = '[REDACTED]';
         }
         if (isset($payload['ConfigItems']) && is_array($payload['ConfigItems'])) {
             $payload['ConfigItems'] = array_map(function ($item) {
-                if (is_array($item) && in_array($item['ConfigItemId'] ?? null, ['APIKey', 'SellerToken'], true)) $item['SelectedValue'] = '[REDACTED]';
+                if (is_array($item) && in_array($item['ConfigItemId'] ?? null, ['APIKey', 'AccountToken'], true)) $item['SelectedValue'] = '[REDACTED]';
                 return $item;
             }, $payload['ConfigItems']);
         }
@@ -910,15 +910,15 @@ class ChannelIntegrationController extends Controller
 
     private function buildUserConfigResponse(Tenant $tenant): array
     {
-        $isConfigured = !str_starts_with($tenant->target_api_key, '_pending_')
-            && !str_starts_with($tenant->target_seller_id, '_pending_')
-            && !str_starts_with($tenant->target_seller_token, '_pending_');
+        $isConfigured = !str_starts_with($tenant->vendor_api_key, '_pending_')
+            && !str_starts_with($tenant->vendor_account_id, '_pending_')
+            && !str_starts_with($tenant->vendor_account_token, '_pending_');
 
         $stepName = $isConfigured ? 'UserConfig' : 'AddCredentials';
-        $wizardStepTitle = $isConfigured ? 'Configuration Complete' : 'Add Target Plus Credentials';
+        $wizardStepTitle = $isConfigured ? 'Configuration Complete' : 'Add Vendor Credentials';
         $wizardStepDescription = $isConfigured
             ? 'Credentials are configured. You can now save and continue.'
-            : 'Enter your Target Plus credentials to complete this integration.';
+            : 'Enter your Vendor credentials to complete this integration.';
 
         $configItems = $isConfigured
             ? []
@@ -926,7 +926,7 @@ class ChannelIntegrationController extends Controller
                 [
                     'ConfigItemId' => 'APIKey',
                     'Name' => 'API Key',
-                    'Description' => 'Target Plus API key.',
+                    'Description' => 'Vendor API key.',
                     'GroupName' => 'Credentials',
                     'SortOrder' => 1,
                     'SelectedValue' => '',
@@ -939,9 +939,9 @@ class ChannelIntegrationController extends Controller
                     'HidesHeaderAttribute' => false,
                 ],
                 [
-                    'ConfigItemId' => 'SellerId',
-                    'Name' => 'Seller ID',
-                    'Description' => 'Target Plus seller ID.',
+                    'ConfigItemId' => 'AccountId',
+                    'Name' => 'Account ID',
+                    'Description' => 'Vendor account ID.',
                     'GroupName' => 'Credentials',
                     'SortOrder' => 2,
                     'SelectedValue' => '',
@@ -954,9 +954,9 @@ class ChannelIntegrationController extends Controller
                     'HidesHeaderAttribute' => false,
                 ],
                 [
-                    'ConfigItemId' => 'SellerToken',
-                    'Name' => 'Seller Token',
-                    'Description' => 'Target Plus seller token.',
+                    'ConfigItemId' => 'AccountToken',
+                    'Name' => 'Account Token',
+                    'Description' => 'Vendor account token.',
                     'GroupName' => 'Credentials',
                     'SortOrder' => 3,
                     'SelectedValue' => '',
@@ -971,10 +971,10 @@ class ChannelIntegrationController extends Controller
                 [
                     'ConfigItemId' => 'Environment',
                     'Name' => 'Environment',
-                    'Description' => 'Target Plus environment.',
+                    'Description' => 'Vendor environment.',
                     'GroupName' => 'Credentials',
                     'SortOrder' => 4,
-                    'SelectedValue' => $tenant->target_environment === 'prod' ? 'prod' : 'stage',
+                    'SelectedValue' => $tenant->vendor_environment === 'prod' ? 'prod' : 'stage',
                     'RegExValidation' => null,
                     'RegExError' => null,
                     'MustBeSpecified' => true,
@@ -991,7 +991,7 @@ class ChannelIntegrationController extends Controller
         return [
             'Error' => null,
             'StepName' => $stepName,
-            'AccountName' => (string) ($tenant->linnworks_email ?: 'Target Plus Channel'),
+            'AccountName' => (string) ($tenant->linnworks_email ?: 'Vendor Channel'),
             'WizardStepDescription' => $wizardStepDescription,
             'WizardStepTitle' => $wizardStepTitle,
             'ConfigItems' => $configItems,

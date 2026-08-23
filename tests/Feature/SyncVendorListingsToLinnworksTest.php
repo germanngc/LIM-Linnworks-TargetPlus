@@ -2,14 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Models\TpProduct;
+use App\Models\VendorProduct;
 use App\Models\Tenant;
 use App\Services\LinnworksInventoryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
-class SyncTargetListingsToLinnworksTest extends TestCase
+class SyncVendorListingsToLinnworksTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -22,23 +22,23 @@ class SyncTargetListingsToLinnworksTest extends TestCase
             'linnworks_token' => 'linnworks-session-token',
             'linnworks_server' => 'https://eu-ext.linnworks.net',
             'authorization_token' => Tenant::generateAuthorizationToken(),
-            'target_api_key' => 'target-api-key-123',
-            'target_seller_id' => 'seller-123',
-            'target_seller_token' => 'target-seller-token-123',
-            'target_environment' => 'prod',
+            'vendor_api_key' => 'vendor-api-key-123',
+            'vendor_account_id' => 'account-123',
+            'vendor_account_token' => 'vendor-account-token-123',
+            'vendor_environment' => 'prod',
             'active' => true,
         ]);
 
-        $product = TpProduct::create([
+        $product = VendorProduct::create([
             'tenant_id' => $tenant->id,
-            'tcin' => '12345678',
+            'vendor_reference' => '12345678',
             'external_id' => 'EXT-12345678',
             'sku' => 'SKU-123',
-            'title' => 'Target Product Title',
+            'title' => 'Vendor Product Title',
             'status' => 'ACTIVE',
             'available_quantity' => 12,
             'listing_active' => true,
-            'raw_payload' => ['title' => 'Target Product Title'],
+            'raw_payload' => ['title' => 'Vendor Product Title'],
         ]);
 
         Http::fake([
@@ -46,7 +46,7 @@ class SyncTargetListingsToLinnworksTest extends TestCase
                 ->push([], 200)
                 ->push([
                     'ItemNumber' => 'SKU-123',
-                    'ItemTitle' => 'Target Product Title',
+                    'ItemTitle' => 'Vendor Product Title',
                     'Quantity' => 12,
                     'StockItemId' => 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
                 ], 200),
@@ -64,7 +64,7 @@ class SyncTargetListingsToLinnworksTest extends TestCase
             ], 200),
         ]);
 
-        $result = app(LinnworksInventoryService::class)->syncTargetProductListing($tenant, $product);
+        $result = app(LinnworksInventoryService::class)->syncVendorProductListing($tenant, $product);
 
         $this->assertSame('created', $result['status']);
         $this->assertSame('SKU-123', $result['sku']);

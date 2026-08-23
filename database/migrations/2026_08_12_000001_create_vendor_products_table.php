@@ -8,10 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('target_products', function (Blueprint $table) {
+        Schema::create('vendor_products', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tenant_id')->constrained('tenants')->cascadeOnDelete();
-            $table->string('tcin')->index();
+            $table->string('vendor_reference')->index();
             $table->string('external_id')->nullable()->index();
             $table->string('sku')->nullable()->index();
             $table->string('title')->nullable();
@@ -25,12 +25,12 @@ return new class extends Migration
             $table->timestamp('linnworks_synced_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['tenant_id', 'tcin']);
+            $table->unique(['tenant_id', 'vendor_reference']);
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('target_products');
+        Schema::dropIfExists('vendor_products');
     }
 };

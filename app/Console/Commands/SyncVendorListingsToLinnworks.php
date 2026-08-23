@@ -2,16 +2,16 @@
 
 namespace App\Console\Commands;
 
-use App\Models\TpProduct;
+use App\Models\VendorProduct;
 use App\Models\Tenant;
 use App\Services\LinnworksInventoryService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
-class SyncTargetListingsToLinnworks extends Command
+class SyncVendorListingsToLinnworks extends Command
 {
-    protected $signature = 'tp:sync-listings {tenant_id? : Limit to a specific tenant}';
-    protected $description = 'Sync Target Plus catalog items into Linnworks stock items and channel mappings.';
+    protected $signature = 'vendor:sync-listings {tenant_id? : Limit to a specific tenant}';
+    protected $description = 'Sync Vendor catalog items into Linnworks stock items and channel mappings.';
 
     public function handle(LinnworksInventoryService $linnworks): int
     {
@@ -27,15 +27,15 @@ class SyncTargetListingsToLinnworks extends Command
 
     private function syncTenantListings(LinnworksInventoryService $linnworks, Tenant $tenant): void
     {
-        $products = TpProduct::where('tenant_id', $tenant->id)->get();
+        $products = VendorProduct::where('tenant_id', $tenant->id)->get();
 
         foreach ($products as $product) {
-            $result = $linnworks->syncTargetProductListing($tenant, $product);
+            $result = $linnworks->syncVendorProductListing($tenant, $product);
 
             if (($result['status'] ?? null) === 'failed') {
-                Log::warning('SyncTargetListingsToLinnworks failed', [
+                Log::warning('SyncVendorListingsToLinnworks failed', [
                     'tenant' => $tenant->id,
-                    'tcin' => $product->tcin,
+                    'vendor_reference' => $product->vendor_reference,
                     'reason' => $result['reason'] ?? 'unknown',
                 ]);
 
@@ -43,9 +43,9 @@ class SyncTargetListingsToLinnworks extends Command
             }
 
             $this->line(sprintf(
-                'tenant=%d tcin=%s sku=%s stock_item_id=%s mapping_id=%s status=%s',
+                'tenant=%d vendor_reference=%s sku=%s stock_item_id=%s mapping_id=%s status=%s',
                 $tenant->id,
-                $product->tcin,
+                $product->vendor_reference,
                 $result['sku'] ?? '-',
                 $result['stock_item_id'] ?? '-',
                 $result['channel_mapping_id'] ?? '-',

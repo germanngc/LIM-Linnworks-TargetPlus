@@ -23,7 +23,7 @@ class AlertService
         }
 
         $env = app()->environment();
-        $message = "[{$env}] :rotating_light: *Target Plus sync failure* after {$attempt} attempts\n"
+        $message = "[{$env}] :rotating_light: *Vendor sync failure* after {$attempt} attempts\n"
             . "Tenant ID: `{$tenantId}` | Order ID: `{$orderId}`\n"
             . "Error: `{$error}`";
 

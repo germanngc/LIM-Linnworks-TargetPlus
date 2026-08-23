@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Tenant;
-use App\Models\TpProduct;
+use App\Models\VendorProduct;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -21,17 +21,17 @@ class ChannelListingTest extends TestCase
             'linnworks_token' => 'session-token',
             'linnworks_server' => 'https://api.linnworks.net',
             'authorization_token' => Tenant::generateAuthorizationToken(),
-            'target_api_key' => 'api-key',
-            'target_seller_id' => 'seller-1',
-            'target_seller_token' => 'seller-token',
-            'target_environment' => 'stage',
+            'vendor_api_key' => 'api-key',
+            'vendor_account_id' => 'account-1',
+            'vendor_account_token' => 'account-token',
+            'vendor_environment' => 'stage',
             'active' => true,
         ]);
 
-        config(['services.target_plus.base_url' => 'https://target.test']);
+        config(['services.vendor_api.base_url' => 'https://vendor.test']);
         Http::fake([
-            'https://target.test/sellers/seller-1/products' => Http::response([
-                'tcin' => 'MOCK-NEW-1',
+            'https://vendor.test/accounts/account-1/products' => Http::response([
+                'vendor_reference' => 'MOCK-NEW-1',
                 'external_id' => 'MOCK-NEW-1',
                 'status' => 'ACTIVE',
             ], 201),
@@ -59,9 +59,9 @@ class ChannelListingTest extends TestCase
 
         $feedId = $response->json('ChannelFeedId');
         $this->assertNotEmpty($feedId);
-        $this->assertDatabaseHas('tp_products', [
+        $this->assertDatabaseHas('vendor_products', [
             'tenant_id' => $tenant->id,
-            'tcin' => 'MOCK-NEW-1',
+            'vendor_reference' => 'MOCK-NEW-1',
             'sku' => 'NEW-SKU',
             'available_quantity' => 7,
             'listing_active' => true,
@@ -80,7 +80,7 @@ class ChannelListingTest extends TestCase
             ->assertJsonPath('ProductFeeds.0.ChannelReferences.0.Reference', 'MOCK-NEW-1');
 
         Http::assertSent(fn ($request) => $request->method() === 'POST'
-            && $request->url() === 'https://target.test/sellers/seller-1/products'
+            && $request->url() === 'https://vendor.test/accounts/account-1/products'
             && $request['sku'] === 'NEW-SKU');
     }
 
@@ -93,16 +93,16 @@ class ChannelListingTest extends TestCase
             'linnworks_token' => 'session-token',
             'linnworks_server' => 'https://api.linnworks.net',
             'authorization_token' => Tenant::generateAuthorizationToken(),
-            'target_api_key' => 'api-key',
-            'target_seller_id' => 'seller-1',
-            'target_seller_token' => 'seller-token',
-            'target_environment' => 'stage',
+            'vendor_api_key' => 'api-key',
+            'vendor_account_id' => 'account-1',
+            'vendor_account_token' => 'account-token',
+            'vendor_environment' => 'stage',
             'active' => true,
         ]);
 
-        TpProduct::create([
+        VendorProduct::create([
             'tenant_id' => $tenant->id,
-            'tcin' => 'MOCK-EXISTING-1',
+            'vendor_reference' => 'MOCK-EXISTING-1',
             'external_id' => 'MOCK-EXISTING-1',
             'sku' => 'EXISTING-SKU',
             'title' => 'Existing Product',
@@ -113,10 +113,10 @@ class ChannelListingTest extends TestCase
             'raw_payload' => [],
         ]);
 
-        config(['services.target_plus.base_url' => 'https://target.test']);
+        config(['services.vendor_api.base_url' => 'https://vendor.test']);
         Http::fake([
-            'https://target.test/sellers/seller-1/products/MOCK-EXISTING-1' => Http::response([
-                'tcin' => 'MOCK-EXISTING-1',
+            'https://vendor.test/accounts/account-1/products/MOCK-EXISTING-1' => Http::response([
+                'vendor_reference' => 'MOCK-EXISTING-1',
                 'external_id' => 'MOCK-EXISTING-1',
                 'status' => 'ACTIVE',
             ]),
@@ -140,20 +140,20 @@ class ChannelListingTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('Error', null);
 
-        $this->assertDatabaseHas('tp_products', [
+        $this->assertDatabaseHas('vendor_products', [
             'tenant_id' => $tenant->id,
-            'tcin' => 'MOCK-EXISTING-1',
+            'vendor_reference' => 'MOCK-EXISTING-1',
             'sku' => 'EXISTING-SKU',
             'title' => 'Updated Product',
             'available_quantity' => 9,
         ]);
 
         Http::assertSent(fn ($request) => $request->method() === 'PUT'
-            && $request->url() === 'https://target.test/sellers/seller-1/products/MOCK-EXISTING-1'
+            && $request->url() === 'https://vendor.test/accounts/account-1/products/MOCK-EXISTING-1'
             && $request['sku'] === 'EXISTING-SKU');
     }
 
-    public function test_listing_create_uses_in_app_mock_store_for_mock_target_urls(): void
+    public function test_listing_create_uses_in_app_mock_store_for_mock_vendor_urls(): void
     {
         $tenant = Tenant::create([
             'linnworks_user_id' => 'listing-local-mock-user',
@@ -162,14 +162,14 @@ class ChannelListingTest extends TestCase
             'linnworks_token' => 'session-token',
             'linnworks_server' => 'https://api.linnworks.net',
             'authorization_token' => Tenant::generateAuthorizationToken(),
-            'target_api_key' => 'api-key',
-            'target_seller_id' => 'seller-local-mock',
-            'target_seller_token' => 'seller-token',
-            'target_environment' => 'stage',
+            'vendor_api_key' => 'api-key',
+            'vendor_account_id' => 'account-local-mock',
+            'vendor_account_token' => 'account-token',
+            'vendor_environment' => 'stage',
             'active' => true,
         ]);
 
-        config(['services.target_plus.base_url' => 'http://127.0.0.1:8000/mock-target-plus']);
+        config(['services.vendor_api.base_url' => 'http://127.0.0.1:8000/mock-vendor']);
         Http::preventStrayRequests();
 
         $response = $this->postJson('/api/Listing/ListingUpdate', [

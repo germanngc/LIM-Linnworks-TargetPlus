@@ -3,14 +3,14 @@
 namespace App\Console\Commands;
 
 use App\Models\Tenant;
-use App\Models\TpOrder;
+use App\Models\VendorOrder;
 use App\Services\LinnworksOrderPushService;
 use Illuminate\Console\Command;
 
 class PushOrdersToLinnworks extends Command
 {
     protected $signature = 'tp:push-orders {tenant_id? : Limit to a specific tenant}';
-    protected $description = 'Push pending Target Plus orders from local DB into Linnworks.';
+    protected $description = 'Push pending Vendor orders from local DB into Linnworks.';
 
     public function handle(LinnworksOrderPushService $pushService): int
     {
@@ -22,27 +22,27 @@ class PushOrdersToLinnworks extends Command
         $tenants = Tenant::syncable($tenantId === null ? null : (int) $tenantId);
 
         foreach ($tenants as $tenant) {
-            $orders = TpOrder::where('tenant_id', $tenant->id)
-                ->whereIn('sync_status', [TpOrder::SYNC_PENDING, TpOrder::SYNC_FAILED, TpOrder::SYNC_BLOCKED])
-                ->orderBy('target_order_date')
+            $orders = VendorOrder::where('tenant_id', $tenant->id)
+                ->whereIn('sync_status', [VendorOrder::SYNC_PENDING, VendorOrder::SYNC_FAILED, VendorOrder::SYNC_BLOCKED])
+                ->orderBy('vendor_order_date')
                 ->limit(100)
                 ->get();
 
             foreach ($orders as $order) {
                 $result = $pushService->pushOrder($tenant, $order);
 
-                if ($result === TpOrder::SYNC_BLOCKED) {
+                if ($result === VendorOrder::SYNC_BLOCKED) {
                     $hasBlocked = true;
                     continue;
                 }
 
-                if ($result !== TpOrder::SYNC_SYNCED) {
+                if ($result !== VendorOrder::SYNC_SYNCED) {
                     $hasFailures = true;
                     continue;
                 }
 
                 $order->update([
-                    'sync_status' => TpOrder::SYNC_SYNCED,
+                    'sync_status' => VendorOrder::SYNC_SYNCED,
                     'synced_to_linnworks_at' => now(),
                     'sync_attempt' => 0,
                     'last_sync_error' => null,

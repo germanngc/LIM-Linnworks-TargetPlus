@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\Tenant;
-use App\Models\TpOrder;
+use App\Models\VendorOrder;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -15,7 +15,7 @@ class LinnworksOrderPushService
     /**
      * Push a single TP order payload to Linnworks.
      */
-    public function pushOrder(Tenant $tenant, TpOrder $order): string
+    public function pushOrder(Tenant $tenant, VendorOrder $order): string
     {
         $paths = array_values(array_unique([
             (string) config('services.linnworks.order_push_path', '/api/Orders/CreateOrders'),
@@ -36,7 +36,7 @@ class LinnworksOrderPushService
                 $response = $this->httpClient($tenant)->post($url, $payload);
 
                 if ($response->successful()) {
-                    return TpOrder::SYNC_SYNCED;
+                    return VendorOrder::SYNC_SYNCED;
                 }
 
                 $body = $response->json();
@@ -60,19 +60,19 @@ class LinnworksOrderPushService
 
                 Log::warning('Linnworks order push failed', [
                     'tenant' => $tenant->id,
-                    'order_id' => $order->target_order_id,
+                    'order_id' => $order->vendor_order_id,
                     'status' => $response->status(),
                     'error' => $errorMessage,
                     'path' => $path,
                 ]);
 
                 $order->update([
-                    'sync_status' => TpOrder::SYNC_FAILED,
+                    'sync_status' => VendorOrder::SYNC_FAILED,
                     'sync_attempt' => min(255, (int) $order->sync_attempt + 1),
                     'last_sync_error' => mb_substr((string) $errorMessage, 0, 2000),
                 ]);
 
-                return TpOrder::SYNC_FAILED;
+                return VendorOrder::SYNC_FAILED;
             } catch (\Throwable $e) {
                 $allUnsupported = false;
                 $lastStatus = 0;
@@ -80,14 +80,14 @@ class LinnworksOrderPushService
             }
         }
 
-        $status = $allUnsupported ? TpOrder::SYNC_BLOCKED : TpOrder::SYNC_FAILED;
+        $status = $allUnsupported ? VendorOrder::SYNC_BLOCKED : VendorOrder::SYNC_FAILED;
         $friendlyError = $allUnsupported
             ? 'Direct Linnworks order push endpoint is unavailable for this account/path. Use channel pull endpoint integration or set LINNWORKS_ORDER_PUSH_PATH to a valid resource.'
             : (string) ($lastError ?: 'Unknown Linnworks push error.');
 
         Log::warning('Linnworks order push failed', [
             'tenant' => $tenant->id,
-            'order_id' => $order->target_order_id,
+            'order_id' => $order->vendor_order_id,
             'status' => $lastStatus,
             'error' => $friendlyError,
             'paths_tried' => $paths,

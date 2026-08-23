@@ -3,8 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Tenant;
-use App\Models\TpOrder;
-use App\Services\MockTargetPlusStore;
+use App\Models\VendorOrder;
+use App\Services\MockVendorStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -21,19 +21,19 @@ class MockOrderImportTest extends TestCase
             'linnworks_token' => 'session-token',
             'linnworks_server' => 'https://api.linnworks.net',
             'authorization_token' => Tenant::generateAuthorizationToken(),
-            'target_api_key' => 'api-key',
-            'target_seller_id' => 'seller-mock-order',
-            'target_seller_token' => 'seller-token',
-            'target_environment' => 'stage',
+            'vendor_api_key' => 'api-key',
+            'vendor_account_id' => 'account-mock-order',
+            'vendor_account_token' => 'account-token',
+            'vendor_environment' => 'stage',
             'active' => true,
         ]);
 
-        config(['services.target_plus.base_url' => 'http://127.0.0.1:8000/mock-target-plus']);
+        config(['services.vendor_api.base_url' => 'http://127.0.0.1:8000/mock-vendor']);
 
-        app(MockTargetPlusStore::class)->addOrder($tenant->target_seller_id, [
-            'id' => 'TP-MOCK-IMPORT-1',
-            'order_id' => 'TP-MOCK-IMPORT-1',
-            'order_number' => 'TP-MOCK-IMPORT-1',
+        app(MockVendorStore::class)->addOrder($tenant->vendor_account_id, [
+            'id' => 'MOCK-ORDER-IMPORT-1',
+            'order_id' => 'MOCK-ORDER-IMPORT-1',
+            'order_number' => 'MOCK-ORDER-IMPORT-1',
             'order_date' => now()->utc()->toIso8601String(),
             'last_modified' => now()->utc()->toIso8601String(),
             'status' => 'NEW',
@@ -41,20 +41,20 @@ class MockOrderImportTest extends TestCase
             'order_lines' => [[
                 'order_line_number' => 1,
                 'sku' => 'SKU-1001',
-                'tcin' => 'SKU-1001',
+                'vendor_reference' => 'SKU-1001',
                 'quantity' => 1,
                 'price' => 79.99,
                 'status' => 'PENDING',
             ]],
         ]);
 
-        $this->artisan('tp:pull-orders', ['tenant_id' => $tenant->id])
+        $this->artisan('vendor:pull-orders', ['tenant_id' => $tenant->id])
             ->assertSuccessful();
 
-        $this->assertDatabaseHas('tp_orders', [
+        $this->assertDatabaseHas('vendor_orders', [
             'tenant_id' => $tenant->id,
-            'target_order_id' => 'TP-MOCK-IMPORT-1',
-            'sync_status' => TpOrder::SYNC_PENDING,
+            'vendor_order_id' => 'MOCK-ORDER-IMPORT-1',
+            'sync_status' => VendorOrder::SYNC_PENDING,
         ]);
 
         $this->postJson('/api/Order/Orders', [
@@ -63,7 +63,7 @@ class MockOrderImportTest extends TestCase
             'UTCTimeFrom' => now()->subMinute()->utc()->toIso8601String(),
         ])->assertOk()
             ->assertJsonPath('Error', null)
-            ->assertJsonPath('Orders.0.ReferenceNumber', 'TP-MOCK-IMPORT-1')
+            ->assertJsonPath('Orders.0.ReferenceNumber', 'MOCK-ORDER-IMPORT-1')
             ->assertJsonPath('Orders.0.OrderItems.0.SKU', 'SKU-1001');
     }
 }

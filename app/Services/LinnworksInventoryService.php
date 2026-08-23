@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\TpProduct;
+use App\Models\VendorProduct;
 use App\Models\Tenant;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 
 class LinnworksInventoryService
 {
-    private const DEFAULT_CHANNEL_SOURCE = 'TARGET_PLUS';
+    private const DEFAULT_CHANNEL_SOURCE = 'VENDOR';
     private const DEFAULT_CHANNEL_SUBSOURCE = 'DEFAULT';
 
     public function getInventoryItem(Tenant $tenant, ?string $stockItemId = null, ?string $sku = null): ?array
@@ -37,7 +37,7 @@ class LinnworksInventoryService
             'inventoryItemId' => $stockItemId,
             'fieldName' => $fieldName,
             'fieldValue' => $fieldValue,
-            'changeSource' => 'TargetPlusSync',
+            'changeSource' => 'VendorSync',
         ]) !== null;
     }
 
@@ -55,9 +55,9 @@ class LinnworksInventoryService
         ]);
     }
 
-    public function syncTargetProductListing(
+    public function syncVendorProductListing(
         Tenant $tenant,
-        TpProduct $product,
+        VendorProduct $product,
         ?string $source = null,
         ?string $subSource = null
     ): array {
@@ -106,7 +106,7 @@ class LinnworksInventoryService
             'ChannelSKU' => $sku,
             'Source' => $source,
             'SubSource' => $subSource,
-            'ChannelReferenceId' => $product->tcin,
+            'ChannelReferenceId' => $product->vendor_reference,
             'MaxListedQuantity' => $quantity,
             'EndWhenStock' => 0,
             'StockPercentage' => 100,
@@ -134,9 +134,9 @@ class LinnworksInventoryService
         ];
     }
 
-    private function resolveSku(TpProduct $product): string
+    private function resolveSku(VendorProduct $product): string
     {
-        return trim((string) ($product->sku ?: $product->external_id ?: $product->tcin));
+        return trim((string) ($product->sku ?: $product->external_id ?: $product->vendor_reference));
     }
 
     private function extractChannelMappingId(?array $response): ?string

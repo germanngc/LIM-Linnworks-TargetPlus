@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class TpListingFeed extends Model
+class VendorListingFeed extends Model
 {
     protected $fillable = ['tenant_id', 'channel_feed_id', 'operation', 'request_hash', 'product_feeds'];
 

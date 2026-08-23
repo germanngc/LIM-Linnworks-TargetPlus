@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Tenant;
-use App\Models\TpProduct;
+use App\Models\VendorProduct;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -11,14 +11,14 @@ class ChannelProductsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_it_returns_mappable_target_plus_products_for_the_tenant(): void
+    public function test_it_returns_mappable_vendor_api_products_for_the_tenant(): void
     {
         $tenant = $this->tenant('tenant-1');
         $otherTenant = $this->tenant('tenant-2');
 
-        TpProduct::create([
+        VendorProduct::create([
             'tenant_id' => $tenant->id,
-            'tcin' => '12345678901',
+            'vendor_reference' => '12345678901',
             'external_id' => 'EXT-001',
             'sku' => 'SKU-1001',
             'title' => 'Mapped Product',
@@ -29,9 +29,9 @@ class ChannelProductsTest extends TestCase
             'raw_payload' => ['price' => 19.95],
         ]);
 
-        TpProduct::create([
+        VendorProduct::create([
             'tenant_id' => $otherTenant->id,
-            'tcin' => '99999999999',
+            'vendor_reference' => '99999999999',
             'sku' => 'OTHER-SKU',
             'title' => 'Other Tenant Product',
         ]);
@@ -59,10 +59,10 @@ class ChannelProductsTest extends TestCase
             'linnworks_token' => 'session-token',
             'linnworks_server' => 'https://api.linnworks.net',
             'authorization_token' => Tenant::generateAuthorizationToken(),
-            'target_api_key' => 'api-key',
-            'target_seller_id' => 'seller-id',
-            'target_seller_token' => 'seller-token',
-            'target_environment' => 'stage',
+            'vendor_api_key' => 'api-key',
+            'vendor_account_id' => 'account-id',
+            'vendor_account_token' => 'account-token',
+            'vendor_environment' => 'stage',
             'active' => true,
         ]);
     }

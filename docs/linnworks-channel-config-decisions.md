@@ -52,11 +52,11 @@ Implication: Listings/mapping quality depends on a real `Products` feed.
 ## Current Implementation Status
 
 - `Order/Orders`: implemented and paged via `OrdersController`.
-- `Order/Despatch`: implemented and pushes shipment confirmation to Target Plus.
+- `Order/Despatch`: implemented and pushes shipment confirmation to vendor.
 - `Order/Cancel`: stub (returns success, no channel-side cancellation action yet).
 - `Order/Refund`: stub (returns success, no channel-side refund action yet).
-- `Product/Products`: implemented from the local `tp_products` cache with 100-item paging.
-- `Product/InventoryUpdate`: implemented with per-SKU Target Plus updates and results.
+- `Product/Products`: implemented from the local `vendor_products` cache with 100-item paging.
+- `Product/InventoryUpdate`: implemented with per-SKU the vendor updates and results.
 - `Product/PriceUpdate`: stub (ack only).
 - Listing endpoints (`Listing/*`): discovery stubs.
 
@@ -89,7 +89,7 @@ Decision:
 - Update inventory: ON after products have been downloaded and mapped
 - Max listed / Stock percentage / End when: configure according to the merchant's stock policy
 
-Decision: enable after running `tp:sync-catalog`, confirming `Product/Products` returns the expected SKUs, and completing Linnworks mapping.
+Decision: enable after running `vendor:sync-catalog`, confirming `Product/Products` returns the expected SKUs, and completing Linnworks mapping.
 
 ### Inventory - Price Change section
 
@@ -99,8 +99,8 @@ Decision: OFF for now because `PriceUpdate` is currently stubbed.
 
 ### Listings section
 
-- Auto Link by SKU: ON only when Target Plus and Linnworks SKUs are known to match
-- Download Listings: use after `tp:sync-catalog` populates `tp_products`
+- Auto Link by SKU: ON only when the vendor and Linnworks SKUs are known to match
+- Download Listings: use after `vendor:sync-catalog` populates `vendor_products`
 
 Decision:
 
@@ -119,9 +119,9 @@ Decision:
 
 Required:
 
-- Run `tp:sync-catalog` and verify `tp_products` is populated.
+- Run `vendor:sync-catalog` and verify `vendor_products` is populated.
 - Download/map products in Linnworks.
-- Change stock for a mapped SKU and verify the Target Plus update plus per-SKU response.
+- Change stock for a mapped SKU and verify the the vendor update plus per-SKU response.
 
 Then decision update:
 
@@ -142,7 +142,7 @@ Then decision update:
 Required:
 
 - Validate Download Listings behavior in Linnworks UI using the implemented product feed.
-- Implement the separate `Listing/*` creation/update endpoints if Target Plus listing creation is required.
+- Implement the separate `Listing/*` creation/update endpoints if the vendor listing creation is required.
 
 Then decision update:
 
@@ -165,5 +165,5 @@ Until price and listing creation are complete:
 3. Set Order sync date to now minus 15-30 minutes.
 4. Keep Inventory and Price Change toggles OFF.
 5. Do a single test order through `Order/Orders` pull.
-6. Despatch from Linnworks and verify Target Plus shipment confirmation.
+6. Despatch from Linnworks and verify the vendor shipment confirmation.
 7. Monitor logs for endpoint and payload correctness.

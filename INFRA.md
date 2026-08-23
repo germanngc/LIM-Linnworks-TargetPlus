@@ -1,13 +1,13 @@
 # Infrastructure and Production Readiness
 
-This document describes the infrastructure required to run the Linnworks Target Plus channel integration, its data flow, scheduled processes, operational controls, and the remaining work before a production launch.
+This document describes the infrastructure required to run the Linnworks channel integration, its data flow, scheduled processes, operational controls, and the remaining work before a production launch.
 
 ## Architecture
 
-The integration is a multi-tenant Laravel application. It acts as the channel adapter between Linnworks and Target Plus.
+The integration is a multi-tenant Laravel application. It acts as the channel adapter between Linnworks and vendor.
 
 ```text
-Target Plus API
+vendor API
       |
       | scheduled order/catalog pulls
       v
@@ -19,14 +19,14 @@ Laravel integration + MySQL
              Linnworks
 ```
 
-Orders are not fetched from Target Plus on demand when Linnworks calls the channel. The application periodically pulls orders from Target Plus into `tp_orders`. Linnworks then polls `/api/Order/Orders`, which returns eligible orders from that local table.
+Orders are not fetched from the vendor on demand when Linnworks calls the channel. The application periodically pulls orders from the vendor into `vendor_orders`. Linnworks then polls `/api/Order/Orders`, which returns eligible orders from that local table.
 
-Catalog products are stored in `tp_products`. Linnworks uses `/api/Product/Products` to obtain the channel-side products needed for SKU mapping. Inventory changes flow in the opposite direction: Linnworks calls `/api/Product/InventoryUpdate`, and the integration forwards the update to Target Plus.
+Catalog products are stored in `vendor_products`. Linnworks uses `/api/Product/Products` to obtain the channel-side products needed for SKU mapping. Inventory changes flow in the opposite direction: Linnworks calls `/api/Product/InventoryUpdate`, and the integration forwards the update to vendor.
 
-During development, Target Plus endpoints are mocked locally. The mock is stateful through the Laravel cache and can be reset with:
+During development, vendor endpoints are mocked locally. The mock is stateful through the Laravel cache and can be reset with:
 
 ```http
-DELETE /mock-target-plus/sellers/{sellerId}/_state
+DELETE /mock-vendor/accounts/{accountId}/_state
 ```
 
 ## Required Services
@@ -56,8 +56,8 @@ APP_URL=https://integration.example.com
 DB_CONNECTION=mysql
 DB_HOST=database-host
 DB_PORT=3306
-DB_DATABASE=lnw_tplus
-DB_USERNAME=lnw_tplus_usr
+DB_DATABASE=lnw_channel
+DB_USERNAME=lnw_channel_usr
 DB_PASSWORD=use-a-secret-manager
 
 CACHE_STORE=redis
@@ -66,14 +66,14 @@ SESSION_DRIVER=database
 
 LINNWORKS_APP_ID=...
 LINNWORKS_APP_SECRET=...
-LINNWORKS_ORDER_SOURCE=TARGET_PLUS
+LINNWORKS_ORDER_SOURCE=VENDOR_CHANNEL
 
-TARGET_PLUS_BASE_URL=https://target-plus-api-base-url
+VENDOR_API_BASE_URL=https://vendor-api-base-url
 ```
 
-Target Plus API keys, seller tokens, Linnworks secrets, database credentials, and `APP_KEY` must be supplied through the deployment platform's secret manager. They must not be committed to source control or written to logs.
+vendor API keys, account tokens, Linnworks secrets, database credentials, and `APP_KEY` must be supplied through the deployment platform's secret manager. They must not be committed to source control or written to logs.
 
-Each active tenant must have a valid Target Plus seller ID, API key, seller token, and environment. Inactive, deleted, or incompletely configured tenants are excluded from synchronization.
+Each active tenant must have a valid vendor account ID, API key, account token, and environment. Inactive, deleted, or incompletely configured tenants are excluded from synchronization.
 
 ## Scheduled Work
 
@@ -81,11 +81,11 @@ The current schedule is defined in `routes/console.php`:
 
 | Command | Interval | Purpose |
 |---|---:|---|
-| `tp:pull-orders` | Every 5 minutes | Pull Target Plus orders into `tp_orders` for Linnworks to poll |
-| `tp:push-cancellations` | Every 15 minutes | Forward Linnworks cancellation state to Target Plus |
+| `vendor:pull-orders` | Every 5 minutes | Pull vendor orders into `vendor_orders` for Linnworks to poll |
+| `vendor:push-cancellations` | Every 15 minutes | Forward Linnworks cancellation state to the vendor |
 | `lw:refresh-tokens` | Every 30 minutes | Refresh Linnworks session tokens |
-| `tp:sync-catalog` | Hourly | Refresh `tp_products` and Linnworks product mapping data |
-| `tp:sync-inventory` | Every 30 minutes | Refresh the channel-side inventory snapshot |
+| `vendor:sync-catalog` | Hourly | Refresh `vendor_products` and Linnworks product mapping data |
+| `vendor:sync-inventory` | Every 30 minutes | Refresh the channel-side inventory snapshot |
 | `sync:prune-logs --days=90` | Daily at 02:30 | Remove old synchronization history |
 
 All scheduled commands use `withoutOverlapping()`. The cache/lock service must therefore be available to the scheduler.
@@ -93,7 +93,7 @@ All scheduled commands use `withoutOverlapping()`. The cache/lock service must t
 Run Laravel's scheduler once per minute, for example:
 
 ```cron
-* * * * * cd /var/www/linnworks-target-plus && php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /var/www/linnworks-channel && php artisan schedule:run >> /dev/null 2>&1
 ```
 
 Alternatively, supervise `php artisan schedule:work`. Only one scheduler should be authoritative unless shared distributed locks are configured and tested.
@@ -132,25 +132,25 @@ Monitor at least the following:
 - Scheduler heartbeat; alert if no scheduled task has completed within its expected interval.
 - Queue depth, failed jobs, and oldest queued-job age.
 - Last successful order, catalog, inventory, cancellation, and token-refresh sync per tenant.
-- Consecutive Target Plus or Linnworks authentication failures.
-- Target Plus throttling, server errors, and retry exhaustion.
+- Consecutive the vendor or Linnworks authentication failures.
+- the vendor throttling, server errors, and retry exhaustion.
 - Linnworks callback validation errors and skipped orders.
 - Disk usage and Laravel log growth.
 
-The application records operational results in `sync_logs`, retained for 90 days by default. Requests use an `X-Correlation-ID`, which is included in log context and forwarded to Target Plus, allowing a callback and its outbound API request to be traced together.
+The application records operational results in `sync_logs`, retained for 90 days by default. Requests use an `X-Correlation-ID`, which is included in log context and forwarded to the vendor, allowing a callback and its outbound API request to be traced together.
 
 Recommended alerts include:
 
 - No successful order pull for 15 minutes.
 - No scheduler heartbeat for 5 minutes.
 - Three consecutive failures for the same tenant and sync type.
-- Any invalid or expired Linnworks/Target Plus credential response.
+- Any invalid or expired Linnworks/the vendor credential response.
 - Queue backlog exceeding the normal processing window.
 - Database backup failure or restore-test failure.
 
 ## Reliability and Data Safety
 
-- Target Plus connection failures, HTTP 429 responses, and 5xx responses are retried with bounded exponential backoff.
+- vendor connection failures, HTTP 429 responses, and 5xx responses are retried with bounded exponential backoff.
 - Authentication, validation, and not-found responses are not blindly retried.
 - The order cursor advances only after both order-fetch passes complete successfully.
 - Cancellation, refund, listing, and shipment operations have idempotency controls to reduce duplicate external mutations.
@@ -163,7 +163,7 @@ The application database is integration state, not merely a disposable cache. Lo
 
 - Require HTTPS for every Linnworks callback and configuration URL.
 - Rotate any credential that has appeared in historical logs.
-- Redact authorization tokens, API keys, seller tokens, and configuration values from logs.
+- Redact authorization tokens, API keys, account tokens, and configuration values from logs.
 - Restrict database and cache services to the private network.
 - Use least-privilege database and deployment identities.
 - Restrict mock endpoints to local/development environments before production deployment.
@@ -185,9 +185,9 @@ Deleting a Linnworks channel configuration can invoke `ConfigDeleted`, which mar
 - [x] Shipment/tracking, cancellation, and refund callbacks
 - [x] SKU/reference mapping support
 - [x] Tenant filtering, sync logging, correlation IDs, retries, and basic idempotency
-- [ ] Validate every request and response against the real Target Plus production contract
+- [ ] Validate every request and response against the real the vendor production contract
 - [ ] Test partial shipments, partial cancellations, and partial refunds
-- [ ] Complete returns handling if required by the seller workflow
+- [ ] Complete returns handling if required by the account workflow
 - [ ] Decide requirements for multi-location inventory
 - [ ] Complete category, image, variation, and richer catalog handling if required
 - [ ] Add reconciliation for stale Linnworks installations and remote deletions
@@ -208,7 +208,7 @@ Deleting a Linnworks channel configuration can invoke `ConfigDeleted`, which mar
 - [ ] Configure centralized logs, metrics, alerts, and scheduler heartbeat
 - [ ] Configure encrypted backups and perform a restore test
 - [ ] Establish staging and production environments with separate credentials
-- [ ] Restrict or remove Target Plus mock routes in production
+- [ ] Restrict or remove the vendor mock routes in production
 - [ ] Add a rollback procedure and verify zero/low-downtime migrations
 - [ ] Document incident response, credential rotation, and tenant cleanup
 
@@ -219,7 +219,7 @@ The recommended implementation order is:
 1. Clean up legacy commands, fake OAuth behavior, stale documentation, and obsolete commented mock code.
 2. Add explicit idempotency and failure-path tests.
 3. Perform the complete Linnworks UI flow against the stateful mock.
-4. Validate and adjust all Target Plus payloads against real API credentials and contracts.
+4. Validate and adjust all the vendor payloads against real API credentials and contracts.
 5. Provision production infrastructure, monitoring, backups, and operational runbooks.
 
-Production launch should remain blocked until the real Target Plus contract has been exercised successfully and the full Linnworks workflow has passed end-to-end testing.
+Production launch should remain blocked until the real the vendor contract has been exercised successfully and the full Linnworks workflow has passed end-to-end testing.

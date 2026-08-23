@@ -2,27 +2,27 @@
 
 namespace App\Services;
 
-use App\Models\TpOrder;
+use App\Models\VendorOrder;
 use Carbon\Carbon;
 
 class OrderMapperService
 {
     /**
-     * Map a Target Plus order (+ its address) to the Linnworks Channel Integration Order schema.
+     * Map a Vendor order (+ its address) to the Linnworks Channel Integration Order schema.
      */
-    public function toLinworks(TpOrder $order): array
+    public function toLinworks(VendorOrder $order): array
     {
-        $payload = $order->target_payload;
-        $address = $order->target_address['shipping_address']
-            ?? $order->target_address['address']
+        $payload = $order->vendor_payload;
+        $address = $order->vendor_address['shipping_address']
+            ?? $order->vendor_address['address']
             ?? $payload['shipping_address']
             ?? [];
 
         return [
-            'Source'                => (string) config('services.linnworks.order_source', 'TARGET_PLUS'),
-            'SubSource'             => (string) config('services.linnworks.order_subsource', 'Target Plus'),
-            'ReferenceNumber'       => $order->target_order_id,
-            'ExternalReference'     => $order->target_order_number,
+            'Source'                => (string) config('services.linnworks.order_source', 'VENDOR'),
+            'SubSource'             => (string) config('services.linnworks.order_subsource', 'Vendor'),
+            'ReferenceNumber'       => $order->vendor_order_id,
+            'ExternalReference'     => $order->vendor_order_number,
             'PaymentStatus'         => $this->mapPaymentStatus($order->lwPaymentStatus()),
             'OrderStatusType'       => 'Unshipped',
             'Currency'              => $payload['currency'] ?? 'USD',
@@ -32,7 +32,7 @@ class OrderMapperService
             'PostalServiceTaxRate'  => 0,
             'UseChannelTax'         => false,
             'MatchPostalServiceTag' => $payload['level_of_service'] ?? '',
-            'MatchPaymentMethodTag' => 'Target Plus',
+            'MatchPaymentMethodTag' => 'Vendor',
             'ChannelBuyerName'      => trim(($address['first_name'] ?? '') . ' ' . ($address['last_name'] ?? '')),
             'BillingAddress'        => $this->mapAddress($address),
             'DeliveryAddress'       => $this->mapAddress($address),
@@ -69,8 +69,8 @@ class OrderMapperService
         foreach ($lines as $line) {
             $mapped[] = [
                 'OrderLineNumber'    => (string) ($line['order_line_number'] ?? ''),
-                'SKU'                => (string) ($line['sku'] ?? $line['tcin'] ?? ''),
-                'ItemTitle'          => (string) ($line['tcin'] ?? ''),
+                'SKU'                => (string) ($line['sku'] ?? $line['vendor_reference'] ?? ''),
+                'ItemTitle'          => (string) ($line['vendor_reference'] ?? ''),
                 'Qty'                => (int) ($line['quantity'] ?? 1),
                 'PricePerUnit'       => (float) ($line['unit_price'] ?? $line['price'] ?? 0),
                 'TaxRate'            => 0,

@@ -4,13 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class TpProduct extends Model
+class VendorProduct extends Model
 {
-    protected $table = 'tp_products';
+    protected $table = 'vendor_products';
 
     protected $fillable = [
         'tenant_id',
-        'tcin',
+        'vendor_reference',
         'external_id',
         'sku',
         'title',

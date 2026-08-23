@@ -3,12 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Tenant;
-use App\Services\TargetPlusService;
+use App\Services\VendorApiService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
-class TargetPlusRetryTest extends TestCase
+class VendorApiRetryTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -35,10 +35,10 @@ class TargetPlusRetryTest extends TestCase
         $tenant = Tenant::create([
             'linnworks_user_id' => uniqid('retry-', true), 'linnworks_email' => 'retry@example.com',
             'linnworks_application_token' => '', 'linnworks_token' => '', 'linnworks_server' => 'https://api.linnworks.net',
-            'authorization_token' => Tenant::generateAuthorizationToken(), 'target_api_key' => 'key',
-            'target_seller_id' => 'seller', 'target_seller_token' => 'token', 'target_environment' => 'stage', 'active' => true,
+            'authorization_token' => Tenant::generateAuthorizationToken(), 'vendor_api_key' => 'key',
+            'vendor_account_id' => 'account', 'vendor_account_token' => 'token', 'vendor_environment' => 'stage', 'active' => true,
         ]);
-        config(['services.target_plus.base_url' => 'https://target.test']);
-        return [new TargetPlusService($tenant), 'https://target.test/sellers/seller/orders*'];
+        config(['services.vendor_api.base_url' => 'https://vendor.test']);
+        return [new VendorApiService($tenant), 'https://vendor.test/accounts/account/orders*'];
     }
 }

@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Tenant;
-use App\Models\TpOrder;
+use App\Models\VendorOrder;
 use App\Services\AlertService;
-use App\Services\TargetPlusService;
+use App\Services\VendorApiService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +23,7 @@ class DespatchController extends Controller
      *   AuthorizationToken: string,
      *   Orders: [
      *     {
-     *       ReferenceNumber: string,     // = target_order_id
+     *       ReferenceNumber: string,     // = vendor_order_id
      *       TrackingNumber: string,
      *       PostalServiceName: string,
      *       // Linnworks may also include Package/line info
@@ -42,7 +42,7 @@ class DespatchController extends Controller
             return response()->json(['Error' => null]);
         }
 
-        $tp = new TargetPlusService($tenant);
+        $tp = new VendorApiService($tenant);
 
         foreach ($orders as $lwOrder) {
             $referenceNumber = $lwOrder['ReferenceNumber'] ?? null;
@@ -54,8 +54,8 @@ class DespatchController extends Controller
                 continue;
             }
 
-            $dbOrder = TpOrder::where('tenant_id', $tenant->id)
-                ->where('target_order_id', $referenceNumber)
+            $dbOrder = VendorOrder::where('tenant_id', $tenant->id)
+                ->where('vendor_order_id', $referenceNumber)
                 ->first();
 
             if (!$dbOrder) {
@@ -73,7 +73,7 @@ class DespatchController extends Controller
                 'items' => array_map(fn (array $item) => collect($item)->except('shipped_date')->all(), $items),
             ]));
 
-            if ($dbOrder->pushed_to_target_at && hash_equals((string) $dbOrder->despatch_checksum, $despatchChecksum)) {
+            if ($dbOrder->pushed_to_vendor_at && hash_equals((string) $dbOrder->despatch_checksum, $despatchChecksum)) {
                 Log::info("Despatch: duplicate shipment ignored for order {$referenceNumber}");
                 continue;
             }
@@ -85,7 +85,7 @@ class DespatchController extends Controller
                     'tracking_number'    => $trackingNumber,
                     'carrier'            => $postalService,
                     'shipped_date'       => now(),
-                    'pushed_to_target_at' => now(),
+                    'pushed_to_vendor_at' => now(),
                     'sync_attempt'       => 0,
                     'last_sync_error'    => null,
                     'despatch_checksum'  => $despatchChecksum,
@@ -94,7 +94,7 @@ class DespatchController extends Controller
                 Log::info("Despatch: confirmed shipment for order {$referenceNumber}");
             } else {
                 $attempt = $dbOrder->sync_attempt + 1;
-                $errMsg  = "Shipment push to Target Plus failed for order {$referenceNumber}";
+                $errMsg  = "Shipment push to Vendor failed for order {$referenceNumber}";
 
                 $dbOrder->update([
                     'sync_attempt'    => $attempt,
@@ -115,9 +115,9 @@ class DespatchController extends Controller
      * Build the bulk_fulfillments_update items array from all unshipped order lines.
      * Strategy A: include all lines not yet shipped with the same tracking number.
      */
-    private function buildFulfillmentItems(TpOrder $order, string $trackingNumber, string $shippingMethod): array
+    private function buildFulfillmentItems(VendorOrder $order, string $trackingNumber, string $shippingMethod): array
     {
-        $lines = $order->target_payload['order_lines'] ?? [];
+        $lines = $order->vendor_payload['order_lines'] ?? [];
         $shippedDate = Carbon::now()->toIso8601String();
         $items = [];
 
@@ -135,7 +135,7 @@ class DespatchController extends Controller
                 'tracking_number'    => $trackingNumber,
                 'shipping_method'    => $shippingMethod,
                 'shipped_date'       => $shippedDate,
-                'level_of_service'   => $order->target_payload['level_of_service'] ?? '',
+                'level_of_service'   => $order->vendor_payload['level_of_service'] ?? '',
             ];
         }
 

@@ -2,17 +2,17 @@
 
 namespace App\Console\Commands;
 
-use App\Models\TpProduct;
+use App\Models\VendorProduct;
 use App\Models\Tenant;
-use App\Services\TargetPlusService;
+use App\Services\VendorApiService;
 use App\Services\SyncLogService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
-class SyncTargetCatalog extends Command
+class SyncVendorCatalog extends Command
 {
-    protected $signature = 'tp:sync-catalog {tenant_id? : Limit to a specific tenant}';
-    protected $description = 'Sync Target Plus catalog information to the internal product mapping table.';
+    protected $signature = 'vendor:sync-catalog {tenant_id? : Limit to a specific tenant}';
+    protected $description = 'Sync Vendor catalog information to the internal product mapping table.';
 
     public function handle(SyncLogService $syncLogs): int
     {
@@ -22,7 +22,7 @@ class SyncTargetCatalog extends Command
 
         foreach ($tenants as $tenant) {
             $result = $this->syncTenantCatalog($tenant);
-            $syncLogs->record($tenant, 'tp_to_lw', 'catalog_pull', $result['success'], "Products synced: {$result['synced']}. {$result['message']}");
+            $syncLogs->record($tenant, 'vendor_to_lw', 'catalog_pull', $result['success'], "Products synced: {$result['synced']}. {$result['message']}");
             $hasFailures = $hasFailures || !$result['success'];
         }
 
@@ -31,7 +31,7 @@ class SyncTargetCatalog extends Command
 
     private function syncTenantCatalog(Tenant $tenant): array
     {
-        $tp = new TargetPlusService($tenant);
+        $tp = new VendorApiService($tenant);
         $page = 1;
         $synced = 0;
 
@@ -39,19 +39,19 @@ class SyncTargetCatalog extends Command
             $items = $tp->getProducts(['page' => $page, 'per_page' => 100]);
 
             if ($items === null) {
-                Log::warning("SyncTargetCatalog failed for tenant {$tenant->id}");
-                return ['success' => false, 'synced' => $synced, 'message' => "Target Plus failed on page {$page}: {$tp->lastFailureMessage()}"];
+                Log::warning("SyncVendorCatalog failed for tenant {$tenant->id}");
+                return ['success' => false, 'synced' => $synced, 'message' => "Vendor failed on page {$page}: {$tp->lastFailureMessage()}"];
             }
 
             foreach ($items as $item) {
-                $tcin = $item['tcin'] ?? null;
+                $vendor_reference = $item['vendor_reference'] ?? null;
 
-                if (!$tcin) {
+                if (!$vendor_reference) {
                     continue;
                 }
 
-                TpProduct::updateOrCreate(
-                    ['tenant_id' => $tenant->id, 'tcin' => $tcin],
+                VendorProduct::updateOrCreate(
+                    ['tenant_id' => $tenant->id, 'vendor_reference' => $vendor_reference],
                     [
                         'external_id' => $item['external_id'] ?? null,
                         'sku' => $item['sku'] ?? $item['external_id'] ?? null,

@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('tp_listing_feeds', function (Blueprint $table) {
+        Schema::create('vendor_listing_feeds', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tenant_id')->constrained('tenants')->cascadeOnDelete();
             $table->uuid('channel_feed_id');
@@ -21,6 +21,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('tp_listing_feeds');
+        Schema::dropIfExists('vendor_listing_feeds');
     }
 };
