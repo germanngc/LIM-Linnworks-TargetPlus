@@ -34,6 +34,7 @@ Required minimum inputs:
 5. Keep in-app mocks for every enabled capability so Linnworks UI flows can be tested before real credentials exist.
 6. Log every asynchronous handoff with a correlation ID: listing feed creation, `CheckFeed`, order returns, inventory updates, despatch, cancellation, refund, and unmatched routes.
 7. Do not log tokens, API keys, customer payment data, or full AuthorizationToken values.
+8. Validate the Linnworks Developer Portal manifest before UI testing. Use `references/linnworks-developer-portal.md` and `docs/linnworks-developer-portal-manifest.template.json`.
 
 ## Linnworks lessons baked into this skeleton
 
@@ -64,3 +65,4 @@ Required minimum inputs:
 - `references/questionnaire.md`
 - `references/capability-matrix.md`
 - `references/implementation-playbook.md`
+- `references/linnworks-developer-portal.md`

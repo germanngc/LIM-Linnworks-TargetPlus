@@ -142,6 +142,7 @@ class InitializeVendorChannel extends Command
     {
         $steps = [
             'Read .ai/skills/linnworks-channel-integration/SKILL.md and the implementation playbook.',
+            'Prepare the Linnworks Developer Portal manifest from docs/linnworks-developer-portal-manifest.template.json.',
             'Adapt app/Services/VendorApiService.php to the vendor API auth, endpoints, pagination, retries, and response shape.',
             'Adapt app/Services/MockVendorStore.php so local mock payloads match the vendor minimum payloads.',
             'Update Linnworks config labels in ChannelIntegrationController if the vendor uses different credential names.',

@@ -9,6 +9,7 @@ Useful project docs:
 - [docs/linnworks-channel-config-decisions.md](docs/linnworks-channel-config-decisions.md)
 - [docs/USER_MANUAL.md](docs/USER_MANUAL.md)
 - [docs/linnworks-channel-user-workflow.drawio](docs/linnworks-channel-user-workflow.drawio)
+- [docs/linnworks-developer-portal-manifest.template.json](docs/linnworks-developer-portal-manifest.template.json)
 - [.ai/agents/linnworks-channel-initializer.md](.ai/agents/linnworks-channel-initializer.md)
 - [.ai/skills/linnworks-channel-integration/SKILL.md](.ai/skills/linnworks-channel-integration/SKILL.md)
 
@@ -25,6 +26,7 @@ Useful project docs:
 - Tenant-based credential storage.
 - Scheduler commands for order/catalog/inventory/cancellation sync.
 - AI-readable skill and agent instructions for Codex, Claude, Cursor, and Copilot.
+- Generic Linnworks Developer Portal manifest template.
 
 The important architecture decision: vendor orders are pulled into `vendor_orders` first. Linnworks does not fetch directly from the vendor on demand; Linnworks polls this app, and this app returns locally cached eligible orders.
 
@@ -86,6 +88,14 @@ After initialization, adapt these first:
 - [app/Http/Controllers/ChannelIntegrationController.php](app/Http/Controllers/ChannelIntegrationController.php)
 - [routes/mock.php](routes/mock.php)
 - [config/services.php](config/services.php)
+
+Then prepare the Linnworks Developer Portal manifest:
+
+- start from [docs/linnworks-developer-portal-manifest.template.json](docs/linnworks-developer-portal-manifest.template.json);
+- replace `{APP_URL}` with the public HTTPS URL;
+- rename `VendorChannel` / `Vendor Channel` only when branding the integration;
+- keep `ChannelName` stable after users install the channel;
+- remove or disable capabilities the vendor does not support.
 
 ## Local development prerequisites
 
@@ -271,6 +281,12 @@ Important: if the ngrok URL changes, Linnworks may continue calling the old URL.
 ## Configure Linnworks
 
 You need a Linnworks application configured for External Channel callbacks.
+
+Developer Portal:
+
+```text
+https://developer.linnworks.com/
+```
 
 At minimum:
 

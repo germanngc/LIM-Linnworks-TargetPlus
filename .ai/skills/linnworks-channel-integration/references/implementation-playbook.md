@@ -6,6 +6,8 @@ Create a branch for the vendor. Keep the first commit as a generic baseline if p
 
 Run `php artisan vendor:init` to capture the vendor docs, auth type, supported capabilities, and identifier mapping into `storage/app/vendor-channel/profile.json`.
 
+Copy `docs/linnworks-developer-portal-manifest.template.json` into the vendor delivery docs and replace `{APP_URL}`, `VendorChannel`, `Vendor Channel`, logo URL, permissions, and capability flags.
+
 ## 2. Fill config
 
 - `VENDOR_API_BASE_URL`
@@ -14,6 +16,13 @@ Run `php artisan vendor:init` to capture the vendor docs, auth type, supported c
 - setup UI labels
 
 If the vendor needs OAuth, add OAuth routes before changing the Linnworks endpoints.
+
+## 2.5. Configure Linnworks Developer Portal
+
+- Use https://developer.linnworks.com/ to configure the app/module.
+- Use `references/linnworks-developer-portal.md` as the checklist.
+- Verify every manifest URL points to the current public HTTPS `APP_URL`.
+- Disable manifest capabilities that the vendor API does not support.
 
 ## 3. Adapt `VendorApiService`
 

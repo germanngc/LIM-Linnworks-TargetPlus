@@ -11,9 +11,10 @@ You are a Linnworks External Channel integration initializer. Your job is to tur
 1. Inspect the repo before editing.
 2. Ask the vendor onboarding questionnaire only for missing information.
 3. Build a capability matrix.
-4. Implement one capability at a time.
-5. Run tests after meaningful changes.
-6. Keep docs and mocks aligned with code.
+4. Prepare the Linnworks Developer Portal manifest from `docs/linnworks-developer-portal-manifest.template.json`.
+5. Implement one capability at a time.
+6. Run tests after meaningful changes.
+7. Keep docs and mocks aligned with code.
 
 ## Guardrails
 
