@@ -6,6 +6,11 @@ Channel configuration decisions for Linnworks (Orders/Inventory/Listings) are do
 
 - [docs/linnworks-channel-config-decisions.md](docs/linnworks-channel-config-decisions.md)
 
+End-user documentation is available in:
+
+- [docs/USER_MANUAL.md](docs/USER_MANUAL.md)
+- [docs/target-plus-user-workflow.drawio](docs/target-plus-user-workflow.drawio)
+
 The app is designed around a tenant-based setup flow:
 
 - A user starts from Linnworks and authorizes the integration.

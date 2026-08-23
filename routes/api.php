@@ -3,6 +3,8 @@
 use App\Http\Controllers\ChannelIntegrationController;
 use App\Http\Controllers\DespatchController;
 use App\Http\Controllers\OrdersController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -52,3 +54,17 @@ Route::middleware('lw.auth')->group(function () {
     Route::post('/Listing/ListingDelete', [ChannelIntegrationController::class, 'listingDelete']);
     Route::post('/Listing/CheckFeed', [ChannelIntegrationController::class, 'checkFeed']);
 });
+
+Route::any('/{any}', function (Request $request) {
+    Log::warning('ChannelIntegration unmatched API route', [
+        'method' => $request->method(),
+        'path' => $request->path(),
+        'ip' => $request->ip(),
+        'user_agent' => $request->userAgent(),
+        'payload' => $request->all(),
+    ]);
+
+    return response()->json([
+        'Error' => 'Unknown endpoint: ' . $request->path(),
+    ], 404);
+})->where('any', '.*');

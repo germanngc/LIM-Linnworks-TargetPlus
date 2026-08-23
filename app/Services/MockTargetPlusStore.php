@@ -51,6 +51,33 @@ class MockTargetPlusStore
         return Cache::rememberForever($this->key($sellerId, 'orders'), fn () => $this->defaultOrders());
     }
 
+    public function addOrder(string $sellerId, array $data): array
+    {
+        $orders = $this->orders($sellerId);
+        $orderId = (string) ($data['id'] ?? $data['order_id'] ?? 'TP-MOCK-' . now()->utc()->format('YmdHis'));
+        $order = array_merge([
+            'id' => $orderId,
+            'order_id' => $orderId,
+            'order_number' => $orderId,
+            'order_date' => now()->utc()->toIso8601String(),
+            'last_modified' => now()->utc()->toIso8601String(),
+            'status' => 'NEW',
+            'currency' => 'USD',
+            'order_lines' => [],
+        ], $data, [
+            'id' => $orderId,
+            'order_id' => (string) ($data['order_id'] ?? $orderId),
+            'order_number' => (string) ($data['order_number'] ?? $orderId),
+            'last_modified' => now()->utc()->toIso8601String(),
+        ]);
+
+        $index = collect($orders)->search(fn ($existing) => ($existing['id'] ?? null) === $orderId);
+        $index === false ? $orders[] = $order : $orders[$index] = $order;
+        Cache::forever($this->key($sellerId, 'orders'), $orders);
+
+        return $order;
+    }
+
     public function mutateOrder(string $sellerId, string $orderId, array $changes): ?array
     {
         $orders = $this->orders($sellerId);

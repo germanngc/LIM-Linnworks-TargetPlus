@@ -542,14 +542,39 @@ class ChannelIntegrationController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('tenant');
-        $operation = (int) $request->input('Type', 0) === 1 ? 'update' : 'create';
-        $requestHash = hash('sha256', json_encode(['Type' => $request->input('Type', 0), 'Listings' => $request->input('Listings', []), 'Settings' => $request->input('Settings', [])]));
+        $operation = $this->listingOperation($request->input('Type', 0));
+        $listings = $this->requestArray($request, 'Listings');
+        $settings = $this->requestArray($request, 'Settings');
+        $requestHash = hash('sha256', json_encode(['Type' => $operation, 'Listings' => $listings, 'Settings' => $settings]));
         $existingFeed = TpListingFeed::where('tenant_id', $tenant->id)->where('operation', $operation)->where('request_hash', $requestHash)->first();
-        if ($existingFeed) return response()->json(['Error' => null, 'ChannelFeedId' => $existingFeed->channel_feed_id]);
+        if ($existingFeed && !$this->listingFeedHasErrors($existingFeed)) {
+            Log::info('ChannelIntegration ListingUpdate duplicate request', [
+                'tenant_id' => $tenant->id,
+                'operation' => $operation,
+                'channel_feed_id' => $existingFeed->channel_feed_id,
+            ]);
+
+            return response()->json(['Error' => null, 'ChannelFeedId' => $existingFeed->channel_feed_id]);
+        }
+        if ($existingFeed) {
+            Log::info('ChannelIntegration ListingUpdate retrying failed feed', [
+                'tenant_id' => $tenant->id,
+                'operation' => $operation,
+                'channel_feed_id' => $existingFeed->channel_feed_id,
+            ]);
+        }
         $tp = new TargetPlusService($tenant);
         $productFeeds = [];
 
-        foreach ((array) $request->input('Listings', []) as $listing) {
+        Log::info('ChannelIntegration ListingUpdate received', [
+            'tenant_id' => $tenant->id,
+            'operation' => $operation,
+            'listing_count' => count($listings),
+            'skus' => collect($listings)->filter(fn ($listing) => is_array($listing))->pluck('SKU')->filter()->values()->all(),
+            'payload' => $this->redactedPayload($request),
+        ]);
+
+        foreach ($listings as $listing) {
             if (!is_array($listing)) {
                 continue;
             }
@@ -558,17 +583,44 @@ class ChannelIntegrationController extends Controller
             $templateId = (int) ($listing['TemplateId'] ?? 0);
             $externalId = trim((string) ($listing['ExternalListingId'] ?? ''));
             $payload = $this->mapListingToTargetProduct($listing);
+
+            Log::info('ChannelIntegration ListingUpdate processing listing', [
+                'tenant_id' => $tenant->id,
+                'operation' => $operation,
+                'template_id' => $templateId,
+                'sku' => $sku,
+                'external_listing_id' => $externalId,
+                'target_payload' => [
+                    'sku' => $payload['sku'],
+                    'title' => $payload['title'],
+                    'quantity' => $payload['available_quantity'],
+                    'price' => $payload['price'],
+                    'category' => $payload['category'],
+                    'image_count' => count($payload['images']),
+                    'attribute_keys' => array_keys($payload['attributes']),
+                ],
+            ]);
+
             $response = $sku === '' ? null : ($operation === 'update' && $externalId !== ''
                 ? $tp->updateProduct($externalId, $payload)
                 : $tp->createProduct($payload));
 
             if ($response === null) {
-                $productFeeds[] = $this->listingFeedResult($sku, $templateId, $externalId, null, 'Target Plus listing request failed.');
+                Log::warning('ChannelIntegration ListingUpdate target request failed', [
+                    'tenant_id' => $tenant->id,
+                    'operation' => $operation,
+                    'template_id' => $templateId,
+                    'sku' => $sku,
+                    'external_listing_id' => $externalId,
+                    'target_failure' => $sku === '' ? 'Missing SKU.' : $tp->lastFailureMessage(),
+                ]);
+
+                $productFeeds[] = $this->listingFeedResult($sku, $templateId, $externalId, null, $sku === '' ? 'Missing SKU.' : 'Target Plus listing request failed.');
                 continue;
             }
 
             $reference = (string) ($response['tcin'] ?? $response['external_id'] ?? ($externalId !== '' ? $externalId : $sku));
-            TpProduct::updateOrCreate(
+            $product = TpProduct::updateOrCreate(
                 ['tenant_id' => $tenant->id, 'tcin' => $reference],
                 [
                     'external_id' => (string) ($response['external_id'] ?? $reference),
@@ -581,10 +633,29 @@ class ChannelIntegrationController extends Controller
                     'raw_payload' => array_merge($payload, $response),
                 ]
             );
+
+            Log::info('ChannelIntegration ListingUpdate mapped to Target product', [
+                'tenant_id' => $tenant->id,
+                'operation' => $operation,
+                'template_id' => $templateId,
+                'sku' => $sku,
+                'tp_product_id' => $product->id,
+                'target_reference' => $reference,
+                'external_listing_id' => (string) ($response['external_id'] ?? $reference),
+                'listing_active' => $product->listing_active,
+            ]);
+
             $productFeeds[] = $this->listingFeedResult($sku, $templateId, $reference, $reference);
         }
 
-        $feed = $this->storeListingFeed($tenant, $operation, $productFeeds, $requestHash);
+        $feed = $this->storeListingFeed($tenant, $operation, $productFeeds, $requestHash, $existingFeed);
+
+        Log::info('ChannelIntegration ListingUpdate stored feed', [
+            'tenant_id' => $tenant->id,
+            'operation' => $operation,
+            'channel_feed_id' => $feed->channel_feed_id,
+            'product_feed_count' => count($productFeeds),
+        ]);
 
         return response()->json(['Error' => null, 'ChannelFeedId' => $feed->channel_feed_id]);
     }
@@ -594,12 +665,32 @@ class ChannelIntegrationController extends Controller
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('tenant');
         $tp = new TargetPlusService($tenant);
-        $requestHash = hash('sha256', json_encode($request->input('ExternalListingIds', [])));
+        $externalListingIds = $this->requestArray($request, 'ExternalListingIds');
+        $requestHash = hash('sha256', json_encode($externalListingIds));
         $existingFeed = TpListingFeed::where('tenant_id', $tenant->id)->where('operation', 'delete')->where('request_hash', $requestHash)->first();
-        if ($existingFeed) return response()->json(['Error' => null, 'ChannelFeedId' => $existingFeed->channel_feed_id]);
+        if ($existingFeed && !$this->listingFeedHasErrors($existingFeed)) {
+            Log::info('ChannelIntegration ListingDelete duplicate request', [
+                'tenant_id' => $tenant->id,
+                'channel_feed_id' => $existingFeed->channel_feed_id,
+            ]);
+
+            return response()->json(['Error' => null, 'ChannelFeedId' => $existingFeed->channel_feed_id]);
+        }
+        if ($existingFeed) {
+            Log::info('ChannelIntegration ListingDelete retrying failed feed', [
+                'tenant_id' => $tenant->id,
+                'channel_feed_id' => $existingFeed->channel_feed_id,
+            ]);
+        }
         $productFeeds = [];
 
-        foreach ((array) $request->input('ExternalListingIds', []) as $listing) {
+        Log::info('ChannelIntegration ListingDelete received', [
+            'tenant_id' => $tenant->id,
+            'listing_count' => count($externalListingIds),
+            'payload' => $this->redactedPayload($request),
+        ]);
+
+        foreach ($externalListingIds as $listing) {
             $sku = (string) ($listing['ChannelSKU'] ?? '');
             $externalId = (string) ($listing['ExternalListingId'] ?? '');
             $templateId = (int) ($listing['TemplateId'] ?? 0);
@@ -612,7 +703,13 @@ class ChannelIntegrationController extends Controller
             $productFeeds[] = $this->listingFeedResult($sku, $templateId, $externalId, $externalId, $deleted ? null : 'Target Plus listing delete failed.');
         }
 
-        $feed = $this->storeListingFeed($tenant, 'delete', $productFeeds, $requestHash);
+        $feed = $this->storeListingFeed($tenant, 'delete', $productFeeds, $requestHash, $existingFeed);
+
+        Log::info('ChannelIntegration ListingDelete stored feed', [
+            'tenant_id' => $tenant->id,
+            'channel_feed_id' => $feed->channel_feed_id,
+            'product_feed_count' => count($productFeeds),
+        ]);
 
         return response()->json(['Error' => null, 'ChannelFeedId' => $feed->channel_feed_id]);
     }
@@ -624,6 +721,14 @@ class ChannelIntegrationController extends Controller
         $feed = TpListingFeed::where('tenant_id', $tenant->id)
             ->where('channel_feed_id', (string) $request->input('ChannelFeedId'))
             ->first();
+
+        Log::info('ChannelIntegration CheckFeed received', [
+            'tenant_id' => $tenant->id,
+            'channel_feed_id' => (string) $request->input('ChannelFeedId'),
+            'found' => $feed !== null,
+            'product_feed_count' => $feed ? count((array) $feed->product_feeds) : 0,
+            'template_ids' => $feed ? collect($feed->product_feeds)->pluck('TemplateId')->filter()->values()->all() : [],
+        ]);
 
         if (!$feed) {
             return response()->json(['Error' => 'Unknown ChannelFeedId.', 'IsFeedReady' => true, 'ProductFeeds' => []]);
@@ -682,13 +787,48 @@ class ChannelIntegrationController extends Controller
             'TemplateId' => $templateId,
             'ExternalListingId' => $externalListingId,
             'URL' => '',
-            'Messages' => $error === null ? [] : [['Type' => 'Error', 'Message' => $error]],
+            'Messages' => $error === null ? null : [['Type' => 1, 'Message' => $error]],
             'ChannelReferences' => $reference === null ? [] : [['SKU' => $sku, 'Reference' => $reference]],
         ];
     }
 
-    private function storeListingFeed(Tenant $tenant, string $operation, array $productFeeds, string $requestHash): TpListingFeed
+    private function listingOperation(mixed $type): string
     {
+        if (is_string($type) && strcasecmp($type, 'UPDATE') === 0) {
+            return 'update';
+        }
+
+        return (int) $type === 1 ? 'update' : 'create';
+    }
+
+    private function requestArray(Request $request, string $key): array
+    {
+        $value = $request->input($key, $request->input(lcfirst($key), []));
+
+        return is_array($value) ? $value : [];
+    }
+
+    private function listingFeedHasErrors(TpListingFeed $feed): bool
+    {
+        foreach ((array) $feed->product_feeds as $productFeed) {
+            if (!empty($productFeed['Messages'] ?? [])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function storeListingFeed(Tenant $tenant, string $operation, array $productFeeds, string $requestHash, ?TpListingFeed $existingFeed = null): TpListingFeed
+    {
+        if ($existingFeed) {
+            $existingFeed->update([
+                'product_feeds' => $productFeeds,
+            ]);
+
+            return $existingFeed->refresh();
+        }
+
         return TpListingFeed::create([
             'tenant_id' => $tenant->id,
             'channel_feed_id' => (string) Str::uuid(),

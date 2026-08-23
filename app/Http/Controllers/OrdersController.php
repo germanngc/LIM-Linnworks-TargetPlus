@@ -8,6 +8,7 @@ use App\Services\OrderMapperService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class OrdersController extends Controller
 {
@@ -45,6 +46,15 @@ class OrdersController extends Controller
         $orders = $query->orderBy('target_order_date')->skip($offset)->take(self::PAGE_SIZE)->get();
 
         $mapped = $orders->map(fn (TpOrder $o) => $this->mapper->toLinworks($o))->values()->all();
+
+        Log::info('ChannelIntegration Orders returned', [
+            'tenant_id' => $tenant->id,
+            'utc_time_from' => $from,
+            'page_number' => $pageNumber,
+            'returned' => count($mapped),
+            'total' => $total,
+            'reference_numbers' => $orders->pluck('target_order_id')->values()->all(),
+        ]);
 
         return response()->json([
             'Error'        => null,
