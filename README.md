@@ -1,321 +1,458 @@
 # Linnworks Channel Integration Skeleton
 
-This project is a Laravel application that connects a Linnworks account to a vendor for order synchronization, catalog sync, inventory updates, and fulfillment status flows.
+This repository is a Laravel skeleton for building Linnworks External Channel integrations.
 
-Channel configuration decisions for Linnworks (Orders/Inventory/Listings) are documented in:
+It starts generic on purpose. A new vendor integration should begin by running `php artisan vendor:init`, answering the vendor capability questions, then adapting `VendorApiService`, the mocks, and the mapping layer to the vendor API.
+
+Useful project docs:
 
 - [docs/linnworks-channel-config-decisions.md](docs/linnworks-channel-config-decisions.md)
-
-End-user documentation is available in:
-
 - [docs/USER_MANUAL.md](docs/USER_MANUAL.md)
 - [docs/linnworks-channel-user-workflow.drawio](docs/linnworks-channel-user-workflow.drawio)
+- [.ai/agents/linnworks-channel-initializer.md](.ai/agents/linnworks-channel-initializer.md)
+- [.ai/skills/linnworks-channel-integration/SKILL.md](.ai/skills/linnworks-channel-integration/SKILL.md)
 
-The app is designed around a tenant-based setup flow:
+## What this skeleton already includes
 
-- A user starts from Linnworks and authorizes the integration.
-- The app creates or updates a tenant record.
-- The user enters vendor credentials for that tenant.
-- Background jobs keep orders, inventory, and catalog state synchronized.
+- Linnworks installation/configuration endpoints.
+- Order polling endpoint for Linnworks: `/api/Order/Orders`.
+- Product/catalog endpoint for Linnworks SKU mapping.
+- Listing create/update/delete feed handling with `ChannelFeedId` and `CheckFeed`.
+- Inventory update handling.
+- Despatch/shipment confirmation.
+- Cancellation and refund post-sale mock flows.
+- Stateful local mock vendor API.
+- Tenant-based credential storage.
+- Scheduler commands for order/catalog/inventory/cancellation sync.
+- AI-readable skill and agent instructions for Codex, Claude, Cursor, and Copilot.
 
----
+The important architecture decision: vendor orders are pulled into `vendor_orders` first. Linnworks does not fetch directly from the vendor on demand; Linnworks polls this app, and this app returns locally cached eligible orders.
 
-## 1. Prerequisites
+## Initialize a new vendor integration
 
-Before setting up the integration, make sure you have the following:
+Start on a fresh branch:
+
+```bash
+git switch -c vendor/example-market
+```
+
+Run the initializer:
+
+```bash
+php artisan vendor:init
+```
+
+The command asks for:
+
+- vendor name;
+- API docs URL;
+- auth type;
+- production and sandbox API URLs;
+- supported capabilities;
+- SKU field;
+- product/listing identifier field.
+
+It writes:
+
+```text
+storage/app/vendor-channel/profile.json
+```
+
+That profile becomes the implementation brief for humans and AI assistants.
+
+You can also run it non-interactively:
+
+```bash
+php artisan vendor:init \
+  --name="Example Market" \
+  --docs-url="https://example.test/docs" \
+  --auth=bearer \
+  --prod-url="https://api.example.test" \
+  --stage-url="https://sandbox.example.test" \
+  --capability=orders \
+  --capability=catalog \
+  --capability=listings \
+  --capability=inventory \
+  --capability=shipment \
+  --write-env \
+  --force
+```
+
+After initialization, adapt these first:
+
+- [app/Services/VendorApiService.php](app/Services/VendorApiService.php)
+- [app/Services/MockVendorStore.php](app/Services/MockVendorStore.php)
+- [app/Services/OrderMapperService.php](app/Services/OrderMapperService.php)
+- [app/Http/Controllers/ChannelIntegrationController.php](app/Http/Controllers/ChannelIntegrationController.php)
+- [routes/mock.php](routes/mock.php)
+- [config/services.php](config/services.php)
+
+## Local development prerequisites
+
+Required:
 
 - PHP 8.3+
 - Composer
 - Node.js 18+ and npm
-- Docker Desktop or Docker Engine (for the local MySQL container)
-- A Linnworks application configured with the correct authorization flow
-- A vendor account and API credentials
-- A public HTTPS base URL for production deployment
+- MySQL/MariaDB or SQLite for very small smoke tests
+- A public HTTPS tunnel when testing with Linnworks
 
-You will also need these values available before the app can fully function:
+Optional but recommended:
 
-- `LINNWORKS_APP_ID`
-- `LINNWORKS_APP_SECRET`
-- `vendor API key`
-- `vendor account ID`
-- `vendor account token`
-- `vendor environment`: `prod` or `stage`
+- Docker Desktop or Docker Engine
+- ngrok
+- Redis, if you want production-like cache/queue behavior
 
----
-
-## 2. Dependencies
-
-This project uses:
-
-- Laravel 13
-- MySQL (local setup via Docker)
-- Composer packages from `composer.json`
-- Vite/Node packages from `package.json`
-
-Install PHP and frontend dependencies:
+Install dependencies:
 
 ```bash
 composer install
 npm install
 ```
 
-If you want to run the project setup script included in this repo:
-
-```bash
-composer run setup
-```
-
-That script will:
-
-- install Composer dependencies
-- create `.env` if it does not exist
-- generate the Laravel app key
-- run migrations
-- install npm dependencies
-- build the frontend assets
-
----
-
-## 3. Localhost Setup
-
-### Step 1: Prepare environment variables
-
-Copy the example environment file:
+Create `.env`:
 
 ```bash
 cp .env.example .env
+php artisan key:generate
 ```
 
-Then update the values in `.env` for local development. The app expects a MySQL database and the Linnworks integration settings.
+## Local database options
 
-Example local configuration:
+### Option A: Docker MariaDB
 
-```env
-APP_NAME="Linnworks Channel"
-APP_ENV=local
-APP_URL=http://localhost
-
-DB_CONNECTION=mysql
-DB_HOST=localhost
-DB_PORT=9308
-DB_DATABASE=linnworks_channel
-DB_USERNAME=linnworks_channel_usr
-DB_PASSWORD=your_db_password
-
-LINNWORKS_APP_ID=your_linnworks_app_id
-LINNWORKS_APP_SECRET=your_linnworks_app_secret
-
-SLACK_WEBHOOK_URL=
-```
-
-### Step 2: Start the database
-
-This project includes a Docker Compose setup for MariaDB:
+Use this when you want the closest local setup to production.
 
 ```bash
 docker compose up -d db
 ```
 
-The database will be exposed on port `9308`.
+Then configure `.env`:
 
-### Step 3: Generate app key and migrate
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=9308
+DB_DATABASE=linnworks_channel
+DB_USERNAME=linnworks_channel_usr
+DB_PASSWORD=your_db_password
+```
+
+Run migrations:
 
 ```bash
-php artisan key:generate
 php artisan migrate
 ```
 
-### Step 4: Build the front-end assets
+If you see database lock errors from Laravel scheduler commands, verify the DB container is running and reachable.
+
+### Option B: Native MySQL/MariaDB
+
+Install MySQL locally, then create a database and user:
+
+```sql
+CREATE DATABASE linnworks_channel CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'linnworks_channel_usr'@'localhost' IDENTIFIED BY 'your_db_password';
+GRANT ALL PRIVILEGES ON linnworks_channel.* TO 'linnworks_channel_usr'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+Configure `.env`:
+
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=linnworks_channel
+DB_USERNAME=linnworks_channel_usr
+DB_PASSWORD=your_db_password
+```
+
+Then run:
+
+```bash
+php artisan migrate
+```
+
+### Option C: SQLite
+
+Use this only for quick local smoke tests. For Linnworks async testing, MySQL/MariaDB is safer because scheduler locks and queue/database behavior better match production.
+
+```bash
+touch database/database.sqlite
+```
+
+Configure `.env`:
+
+```env
+DB_CONNECTION=sqlite
+DB_DATABASE=/absolute/path/to/database/database.sqlite
+```
+
+Then run:
+
+```bash
+php artisan migrate
+```
+
+## Run the app locally
+
+Build assets:
 
 ```bash
 npm run build
 ```
 
-### Step 5: Run the application
-
-For a local development environment:
+Run the full development stack:
 
 ```bash
 composer run dev
 ```
 
-This starts:
+This normally starts:
 
-- Laravel app server
-- queue worker
-- log viewer
-- Vite dev server
+- Laravel app server;
+- queue worker;
+- log viewer;
+- Vite dev server.
 
-The app should be available at:
+Or run pieces manually:
 
-```text
-http://localhost:8000
+```bash
+php artisan serve --host=127.0.0.1 --port=8000
+php artisan queue:work
+php artisan schedule:work
 ```
 
-### Step 6: Complete the integration setup flow
-
-The first route loads the Linnworks authorization flow:
+The local app should be available at:
 
 ```text
-/
+http://127.0.0.1:8000
 ```
 
-This page expects a `token` query parameter coming from Linnworks. Once validated, the app shows a form for vendor credentials.
+## Expose localhost to Linnworks with ngrok
 
-The required fields are:
+Linnworks must reach your local app through HTTPS. ngrok is the easiest local option.
 
-- `vendor_api_key`
-- `vendor_account_id`
-- `vendor_account_token`
-- `vendor_environment` (`prod` or `stage`)
+Install ngrok:
 
-After submission, the tenant is marked as active and the app starts processing integration jobs.
+```bash
+brew install ngrok/ngrok/ngrok
+```
 
-### Step 7: Background jobs and scheduling
+Authenticate ngrok once:
 
-The app schedules sync jobs in `routes/console.php`:
+```bash
+ngrok config add-authtoken YOUR_NGROK_TOKEN
+```
 
-- Pull vendor orders every 30 minutes
-- Push cancellations every 15 minutes
-- Refresh Linnworks tokens every 15 minutes
-- Sync catalog daily
-- Sync inventory every 30 minutes
-- Sync listings every 30 minutes
+Expose Laravel:
 
-For local development, the scheduler is normally run via:
+```bash
+ngrok http 8000
+```
+
+Copy the HTTPS URL, then update `.env`:
+
+```env
+APP_URL=https://your-ngrok-domain.ngrok-free.app
+VENDOR_API_BASE_URL=https://your-ngrok-domain.ngrok-free.app/mock-vendor
+LINNWORKS_CHANNEL_INTEGRATION=true
+```
+
+Then clear cached config:
+
+```bash
+php artisan optimize:clear
+```
+
+Important: if the ngrok URL changes, Linnworks may continue calling the old URL. Update the Linnworks app/channel configuration or reinstall the channel with the new URL.
+
+## Configure Linnworks
+
+You need a Linnworks application configured for External Channel callbacks.
+
+At minimum:
+
+- the app URL must point to your public HTTPS `APP_URL`;
+- the install/config route must open this app;
+- Linnworks must be able to call the `/api/...` channel endpoints;
+- the app manifest must include the permissions needed for orders, inventory, listings, and post-sale actions you enable.
+
+During setup, Linnworks opens the app with a short-lived token. Complete the setup quickly; the authorization token can expire in seconds.
+
+The setup form stores:
+
+- vendor API key;
+- vendor account ID;
+- vendor account token;
+- vendor environment: `stage` or `prod`.
+
+These are stored encrypted on the `tenants` table.
+
+## Mock-first Linnworks test flow
+
+Use the built-in mock vendor before touching a real vendor API.
+
+Set:
+
+```env
+VENDOR_API_BASE_URL=https://your-ngrok-domain.ngrok-free.app/mock-vendor
+```
+
+Reset mock state:
+
+```http
+DELETE /mock-vendor/accounts/{accountId}/_state
+```
+
+Create a fresh mock order:
+
+```bash
+php artisan vendor:mock-order {tenant_id}
+```
+
+Then wait for Linnworks’ external order download job. Linnworks jobs can take 5-20 minutes. A successful order import usually shows logs like:
+
+```text
+Channel returned 1 number of orders in page 1
+Saving 1 Orders for page 1
+```
+
+On this app you should see:
+
+```text
+ChannelIntegration Orders returned
+```
+
+Test these flows in order:
+
+1. install/config screen opens;
+2. config test succeeds;
+3. create mock order and import it into Linnworks;
+4. create a listing from Linnworks and wait for `CheckFeed`;
+5. update the listing;
+6. delete/close the listing;
+7. update inventory from Linnworks;
+8. process/despatch the order with tracking;
+9. cancellation and refund, if enabled.
+
+## Scheduled jobs
+
+Schedules are defined in [routes/console.php](routes/console.php).
+
+Current defaults:
+
+- `vendor:pull-orders` every 5 minutes;
+- `vendor:push-cancellations` every 15 minutes;
+- `lw:refresh-tokens` every 30 minutes;
+- `vendor:sync-catalog` hourly;
+- `vendor:sync-inventory` every 30 minutes;
+- `sync:prune-logs --days=90` daily.
+
+For local testing:
 
 ```bash
 php artisan schedule:run
 ```
 
-or by using the Laravel dev stack while working in a local environment.
+For continuous local testing:
 
----
+```bash
+php artisan schedule:work
+```
 
-## 4. Production Setup
+For production, run the scheduler every minute:
 
-### Step 1: Prepare the production environment
+```cron
+* * * * * cd /var/www/linnworks-channel && php artisan schedule:run >> /dev/null 2>&1
+```
 
-Set the production values in `.env`:
+## Production setup
+
+Production requires:
+
+- public HTTPS domain;
+- durable MySQL/MariaDB database;
+- queue worker;
+- scheduler;
+- secret manager for API keys and tokens;
+- centralized logs and alerts;
+- stable `APP_URL`.
+
+Example production `.env` shape:
 
 ```env
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://your-domain.example.com
+APP_URL=https://integration.example.com
 
 DB_CONNECTION=mysql
-DB_HOST=your-db-host
+DB_HOST=database-host
 DB_PORT=3306
-DB_DATABASE=your_database
-DB_USERNAME=your_db_user
-DB_PASSWORD=your_db_password
+DB_DATABASE=linnworks_channel
+DB_USERNAME=linnworks_channel_usr
+DB_PASSWORD=use-a-secret-manager
 
-LINNWORKS_APP_ID=your_linnworks_app_id
-LINNWORKS_APP_SECRET=your_linnworks_app_secret
+CACHE_STORE=redis
+QUEUE_CONNECTION=redis
+SESSION_DRIVER=database
+
+LINNWORKS_APP_ID=...
+LINNWORKS_APP_SECRET=...
+LINNWORKS_CHANNEL_INTEGRATION=true
+LINNWORKS_ORDER_SOURCE=VENDOR_CHANNEL
+LINNWORKS_ORDER_SUBSOURCE="Vendor"
+
+VENDOR_API_BASE_URL=https://api.vendor.example
 ```
 
-Use a real database and ensure the application can access it over the network.
-
-### Step 2: Install dependencies on the server
+Deploy normally:
 
 ```bash
-composer install --no-interaction --prefer-dist --optimize-autoloader
-npm install
+composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+npm ci
 npm run build
-```
-
-Then generate the app key and run migrations:
-
-```bash
-php artisan key:generate
 php artisan migrate --force
+php artisan optimize
+php artisan queue:restart
 ```
 
-### Step 3: Configure HTTPS and public URL
-
-Make sure the environment uses a public HTTPS domain. The app uses `APP_URL` for generated URLs, session handling, and filesystem links.
-
-Example:
-
-```bash
-APP_URL=https://your-domain.example.com
-```
-
-### Step 4: Configure Linnworks callback settings
-
-The app initializes from the Linnworks authorization entry point and expects the public URL to be reachable.
-
-Confirm that the Linnworks app is configured to redirect to the same domain and route used by this project, especially the root page:
-
-```text
-https://your-domain.example.com/
-```
-
-### Step 5: Configure the the vendor tenant
-
-Once the app is live, open the root route from the Linnworks authorization flow and complete the setup form for each tenant with:
-
-- `vendor_api_key`
-- `vendor_account_id`
-- `vendor_account_token`
-- `vendor_environment` (`prod` or `stage`)
-
-The app stores these values encrypted and uses them when connecting to vendor.
-
-### Step 6: Run background workers and scheduler
-
-In production, you will need:
-
-- a queue worker running in the background
-- the Laravel scheduler running on a cron job
-
-Example cron entry:
-
-```cron
-* * * * * cd /path/to/project && php artisan schedule:run >> /dev/null 2>&1
-```
-
-And a queue worker process, for example:
+Run a worker:
 
 ```bash
 php artisan queue:work --tries=3 --timeout=90
 ```
 
-### Step 7: Validate the integration
+## Troubleshooting
 
-After setup, confirm the following work correctly:
-
-- Linnworks token validation succeeds
-- vendor credentials save correctly
-- tenant is marked `active`
-- orders are imported from vendor
-- inventory and catalog sync jobs complete
-- dispatch updates flow back to vendor
-
----
-
-## Common Notes
-
-- The app intentionally encrypts vendor credentials on the `Tenant` model before storing them.
-- The `vendor_environment` value controls the base URL:
-  - `prod` -> `https://api.vendor.com/channel_api/v1`
-  - `stage` -> `https://stage-api.vendor.com/channel_api/v1`
-- The app depends on the public URL being reachable from the Linnworks authorization flow.
-
----
-
-## Useful Commands
+Check logs first:
 
 ```bash
-composer install
-npm install
-cp .env.example .env
-php artisan key:generate
-php artisan migrate
-php artisan serve
-composer run dev
-php artisan queue:work
-php artisan schedule:run
+tail -f storage/logs/laravel.log
 ```
 
-If you need to troubleshoot the app, check the Laravel logs in `storage/logs` and validate the environment variables in `.env` before restarting the services.
+Common gotchas:
+
+- If Linnworks shows `ERR_NGROK_3200`, the ngrok tunnel is offline or Linnworks has an old URL.
+- If Linnworks order download completes with no channel logs, Linnworks probably did not call this app URL.
+- If `/api/Order/Orders` returns zero orders, check `UTCTimeFrom`; Linnworks only asks for orders updated after that cursor.
+- If listing creation appears stuck, wait for the `CheckFeed` poll. This can take several minutes.
+- If a listing feed fails, check that product feed results include valid `TemplateId`, SKU, external listing ID, and `Messages`.
+- If scheduler commands fail with DB lock errors, verify DB connectivity and `CACHE_STORE`.
+- Never log raw API keys, account tokens, Linnworks tokens, or customer-sensitive payment data.
+
+## Useful commands
+
+```bash
+php artisan vendor:init
+php artisan vendor:mock-order {tenant_id}
+php artisan vendor:pull-orders
+php artisan vendor:sync-catalog
+php artisan vendor:sync-inventory
+php artisan vendor:sync-listings
+php artisan vendor:push-cancellations
+php artisan schedule:run
+php artisan queue:work
+php artisan test
+```

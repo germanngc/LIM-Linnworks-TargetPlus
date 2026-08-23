@@ -4,6 +4,8 @@
 
 Create a branch for the vendor. Keep the first commit as a generic baseline if possible.
 
+Run `php artisan vendor:init` to capture the vendor docs, auth type, supported capabilities, and identifier mapping into `storage/app/vendor-channel/profile.json`.
+
 ## 2. Fill config
 
 - `VENDOR_API_BASE_URL`
