@@ -2,9 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\TpProduct;
+use App\Models\TargetProduct;
 use App\Models\Tenant;
-use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -57,7 +56,7 @@ class LinnworksInventoryService
 
     public function syncTargetProductListing(
         Tenant $tenant,
-        TpProduct $product,
+        TargetProduct $product,
         ?string $source = null,
         ?string $subSource = null
     ): array {
@@ -134,7 +133,7 @@ class LinnworksInventoryService
         ];
     }
 
-    private function resolveSku(TpProduct $product): string
+    private function resolveSku(TargetProduct $product): string
     {
         return trim((string) ($product->sku ?: $product->external_id ?: $product->tcin));
     }
@@ -156,7 +155,11 @@ class LinnworksInventoryService
     {
         try {
             $baseUrl = rtrim($tenant->linnworks_server, '/');
-            $request = $this->httpClient($tenant);
+            $request = Http::withHeaders([
+                'Authorization' => $tenant->linnworks_token,
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ]);
 
             $response = match (strtoupper($method)) {
                 'GET' => $request->get($baseUrl . $path, $payload),
@@ -186,17 +189,5 @@ class LinnworksInventoryService
         ]);
 
         return null;
-    }
-
-    private function httpClient(Tenant $tenant): PendingRequest
-    {
-        return Http::withHeaders([
-            'Authorization' => $tenant->linnworks_token,
-            'Accept' => 'application/json',
-            'Content-Type' => 'application/json',
-        ])
-            ->connectTimeout(8)
-            ->timeout(20)
-            ->retry(2, 200);
     }
 }
